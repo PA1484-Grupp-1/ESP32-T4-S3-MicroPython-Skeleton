@@ -34,19 +34,31 @@ class Application:
 
     def create_ui(self):
         'Function: Creates UI'
-        self.tileview = lv.tileview(lv.screen_active())
+        self.splash_screen = lv.obj()
+        self.splash_screen.set_size(600, 450)
+        self.splash_screen.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+
+        self.splash_label = lv.label(self.splash_screen)
+        self.splash_label.set_text("Group 1")
+        self.splash_label.set_style_text_font(lv.font_montserrat_28, 0)
+        self.splash_label.center()
+
+        lv.screen_load(self.splash_screen)
+
+        self.tileview = lv.tileview()
         self.tileview.set_size(600, 450)
         self.tileview.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
 
         self.tile1 = self.tileview.add_tile(0, 0, lv.DIR.RIGHT)
-        self.tile2 = self.tileview.add_tile(1, 0, lv.DIR.LEFT)
 
         self.tile1_label = lv.label(self.tile1)
         self.tile1_label.set_text("Hello Students")
         self.tile1_label.set_style_text_font(lv.font_montserrat_28, 0)
         self.tile1_label.center()
         self.apply_tile_colors(self.tile1, self.tile1_label, False)
-
+        
+        self.tile2 = self.tileview.add_tile(1, 0, lv.DIR.LEFT)
+        
         self.tile2_label = lv.label(self.tile2)
         self.tile2_label.set_text("Welcome to the workshop")
         self.tile2_label.set_style_text_font(lv.font_montserrat_28, 0)
@@ -56,6 +68,8 @@ class Application:
         self.tile2.add_event_cb(
             self.on_tile2_clicked, lv.EVENT.CLICKED, None
         )
+
+        lv.screen_load_anim(self.tile1, lv.SCREEN_LOAD_ANIM.FADE_IN, 500, 2000, True)
 
     @staticmethod
     def connect_wifi():
