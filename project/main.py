@@ -8,7 +8,7 @@ import network
 from board_lvgl import start_board
 from debug_log import log
 
-from secrets import WIFI_SSID, WIFI_PASSWORD
+from .secrets import WIFI_SSID, WIFI_PASSWORD
 
 SETTINGS_FILE = "settings.json"
 FACTORY_STOP = "Campus Grasvik"
