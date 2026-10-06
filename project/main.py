@@ -10,6 +10,8 @@ from debug_log import log
 
 from .secrets import WIFI_SSID, WIFI_PASSWORD
 
+import styles
+
 SETTINGS_FILE = "settings.json"
 FACTORY_STOP = "Campus Grasvik"
 FACTORY_TRANSPORT = "All"
@@ -196,18 +198,16 @@ class Application:
         # Startskärm: Tile (0, 0) - Startar alltid här vid boot
         # Tillåter enbart svep nedåt till Huvudskärm
         self.tile_startup = self.tileview.add_tile(0, 0, lv.DIR.BOTTOM)
-        self.tile_startup.set_style_bg_color(lv.color_hex(0x000000), 0)
-        self.tile_startup.set_style_bg_opa(lv.OPA.COVER, 0)
+        self.tile_startup.add_style(styles.screen_default, 0)
 
         self.lbl_title = lv.label(self.tile_startup)
         self.lbl_title.set_text("TRAFFIC SYSTEM")
-        self.lbl_title.set_style_text_color(lv.color_hex(0x00E5FF), 0)
-        self.lbl_title.set_style_text_font(lv.font_montserrat_28, 0)
+        self.lbl_title.add_style(styles.text_title, 0)
         self.lbl_title.align(lv.ALIGN.TOP_MID, 0, 40)
 
         self.lbl_ver = lv.label(self.tile_startup)
         self.lbl_ver.set_text("Version: 0.1.1")
-        self.lbl_ver.set_style_text_color(lv.color_hex(0x888888), 0)
+        self.lbl_ver.add_style(styles.text_sub_title, 0)
         self.lbl_ver.align(lv.ALIGN.TOP_MID, 0, 85)
 
         self.lbl_group = lv.label(self.tile_startup)
@@ -224,13 +224,11 @@ class Application:
         # Huvudskärm: Tile (0, 1) - Demotabell för kollektivtrafik
         # Tillåter svep uppåt (Start) och höger (Inställningar)
         self.tile_main = self.tileview.add_tile(0, 1, lv.DIR.TOP | lv.DIR.RIGHT)
-        self.tile_main.set_style_bg_color(lv.color_hex(0x101010), 0)
-        self.tile_main.set_style_bg_opa(lv.OPA.COVER, 0)
+        self.tile_main.add_style(styles.screen_default)
 
         self.lbl_dept_title = lv.label(self.tile_main)
         self.lbl_dept_title.set_text("DEPARTURES")
-        self.lbl_dept_title.set_style_text_color(lv.color_hex(0x00E5FF), 0)
-        self.lbl_dept_title.set_style_text_font(lv.font_montserrat_20, 0)
+        self.lbl_dept_title.add_style(styles.text_title, 0)
         self.lbl_dept_title.align(lv.ALIGN.TOP_MID, 0, 15)
 
         self.table = lv.table(self.tile_main)
@@ -254,19 +252,17 @@ class Application:
         # Inställningar: Tile (1, 1) - REQ#3.1 till REQ#3.5
         # Till höger om Huvudskärm, svep vänster tillbaka
         self.tile_settings = self.tileview.add_tile(1, 1, lv.DIR.LEFT)
-        self.tile_settings.set_style_bg_color(lv.color_hex(0x181818), 0)
-        self.tile_settings.set_style_bg_opa(lv.OPA.COVER, 0)
+        self.tile_settings.add_style(styles.screen_default, 0)
 
         self.lbl_settings_title = lv.label(self.tile_settings)
         self.lbl_settings_title.set_text("SETTINGS")
-        self.lbl_settings_title.set_style_text_color(lv.color_hex(0x00E5FF), 0)
-        self.lbl_settings_title.set_style_text_font(lv.font_montserrat_28, 0)
+        self.lbl_settings_title.add_style(styles.text_title, 0)
         self.lbl_settings_title.align(lv.ALIGN.TOP_MID, 0, 15)
 
         # REQ#3.2: Dropdown med alla 7 hållplatser
         self.lbl_stop = lv.label(self.tile_settings)
         self.lbl_stop.set_text("Departure Stop:")
-        self.lbl_stop.set_style_text_color(lv.color_hex(0xFFFFFF), 0)
+        self.lbl_stop.add_style(styles.text, 0)
         self.lbl_stop.align(lv.ALIGN.TOP_LEFT, 50, 65)
 
         self.dd_stops = lv.dropdown(self.tile_settings)
@@ -280,7 +276,7 @@ class Application:
         # REQ#3.3: Dropdown för transporttyp
         self.lbl_transport = lv.label(self.tile_settings)
         self.lbl_transport.set_text("Transport Type:")
-        self.lbl_transport.set_style_text_color(lv.color_hex(0xFFFFFF), 0)
+        self.lbl_transport.add_style(styles.text, 0)
         self.lbl_transport.align(lv.ALIGN.TOP_RIGHT, -120, 65)
 
         self.dd_transport = lv.dropdown(self.tile_settings)
