@@ -8,7 +8,7 @@ import network
 from board_lvgl import start_board
 from debug_log import log
 
-from .secrets import WIFI_SSID, WIFI_PASSWORD
+from secrets import WIFI_SSID, WIFI_PASSWORD
 
 import styles
 
@@ -224,8 +224,7 @@ class Application:
         # Huvudskärm: Tile (0, 1) - Demotabell för kollektivtrafik
         # Tillåter svep uppåt (Start) och höger (Inställningar)
         self.tile_main = self.tileview.add_tile(0, 1, lv.DIR.TOP | lv.DIR.RIGHT)
-        self.tile_main.add_style(styles.screen_default)
-
+        self.tile_main.add_style(styles.screen_default, 0)
         self.lbl_dept_title = lv.label(self.tile_main)
         self.lbl_dept_title.set_text("DEPARTURES")
         self.lbl_dept_title.add_style(styles.text_title, 0)
