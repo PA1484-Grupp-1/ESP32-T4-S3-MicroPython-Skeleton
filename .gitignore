@@ -1,5 +1,5 @@
-# Local credentials (copy secrets_example.py to secrets.py)
-/project/secrets.py
+# Local environment credentials
+/project/secrets_env.py
 
 # PlatformIO and generated device images
 /.pio/
