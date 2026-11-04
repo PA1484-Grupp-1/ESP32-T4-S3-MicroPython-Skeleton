@@ -7,3 +7,4 @@
     "python.analysis.stubPath": "./.typings"
 }
 ```
+3. To install additional stubs simply run the command in a new terminal (Top Left: Terminal > New Terminal) `pip install micropython-esp32-stubs`
