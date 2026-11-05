@@ -1,9 +1,6 @@
 import requests
-import json
 
 from secrets_env import TRAFIKLAB_API_KEY
-
-BAKED_STATIONS_FILE = "stations.json"
 
 TARGET_LOCATION = (56.18684333961802, 15.61205558484464) # Middle of Karlskrona
 MAX_DISTANCE = 0.05
@@ -11,14 +8,7 @@ MAX_DISTANCE = 0.05
 def within_target(lat, lon) -> bool:
     return ((lat - TARGET_LOCATION[0])**2 + (lon - TARGET_LOCATION[1])**2) <= (MAX_DISTANCE * MAX_DISTANCE)
 
-def get_all_stop_groups() -> list:
-    #if __name__ == "__main__":
-    #    return query_all_stop_groups()
-
-    #with open(BAKED_STATIONS_FILE, "r") as f:
-    #    return json.load(f)
-    return []
-
+# PC-only: regenerates stations.py (see below). Never called on the device.
 def query_all_stop_groups() -> list:
     GET_STOPS_URL = "https://realtime-api.trafiklab.se/v1/stops/list?key={API_KEY}"
 
@@ -55,5 +45,3 @@ def query_departures(stop_group_id: str) -> list:
 #    joined = "\n".join(export_stops)[:-1]
 #    with open("project/stations.py", "w", encoding="UTF8") as f:
 #        f.write(f"stations = [\n{joined}\n]")
-    #with open("project/" + BAKED_STATIONS_FILE, "w") as f:
-    #    json.dump(stop_groups, f, indent=4, ensure_ascii=False)
