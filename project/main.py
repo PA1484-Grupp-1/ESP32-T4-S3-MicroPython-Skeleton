@@ -11,115 +11,86 @@ from debug_log import log
 from secrets_env import WIFI_SSID, WIFI_PASSWORD
 
 import styles
+import departure_list
 import departures_service as dep_service
+from stations import stations
 
+# Settings file and factory defaults (REQ#3.4, REQ#3.5)
 SETTINGS_FILE = "settings.json"
-DEFAULT_STOP_ID = "740032188" # Campus Gräsvik Id
+DEFAULT_STOP_ID = "740032188"  # Campus Gräsvik Id
 DEFAULT_TRANSPORT = "All"
+REFRESH_INTERVAL_MS = 60_000  # REQ#4.1
 
-# Lista med alla 7 hållplatser i poolen (REQ#1.2 och REQ#3.2)
-AVAILABLE_STOPS = [
-    "Campus Grasvik",
-    "Karlskrona C",
-    "Kungsmarken",
-    "Ronneby Station",
-    "Bastasjo",
-    "Nattraby centrum",
-    "Emmaboda Station"
-]
+# Dropdown name and the matching Trafiklab transport_mode (REQ#3.3)
+TRANSPORT_MODES = (("All", None), ("Bus", "BUS"), ("Train", "TRAIN"), ("Ferry", "BOAT"))
+
+# stations.py is the complete pool of selectable stops: [id, name] (REQ#3.2)
+STATIONS = sorted(stations, key=lambda s: s[1])
 
 
+# MicroPython's str.upper() only converts ASCII letters (REQ#1.2)
+def upper_sv(text):
+    for lower, upper in (("å", "Å"), ("ä", "Ä"), ("ö", "Ö"), ("é", "É"),
+                         ("ü", "Ü"), ("æ", "Æ"), ("ø", "Ø")):
+        text = text.replace(lower, upper)
+    return text.upper()
+
+
+# Dropdown position of a transport type (REQ#3.3)
+def transport_index(name):
+    for index, mode in enumerate(TRANSPORT_MODES):
+        if mode[0] == name:
+            return index
+    return 0
+
+
+# "2026-11-05T14:30:00" -> "14:30" (REQ#1.2)
+def format_time(timestamp):
+    if timestamp is None:
+        return ""
+    return timestamp[11:16] if len(timestamp) >= 16 else timestamp
+
+
+# Departure status column (REQ#1.2)
+def departure_status(departure):
+    if departure.get("canceled"):
+        return "Cancelled"
+    if not departure.get("is_realtime"):
+        return "Scheduled"
+
+    delay = departure.get("delay") or 0
+    if delay >= 60:
+        return "+%d min" % (delay // 60)
+    if delay <= -60:
+        return "-%d min" % (-delay // 60)
+    return "On time"
+
+
+# Owns the screens, the settings and the live data
 class Application:
     def __init__(self):
         self.display, self.touch, self.handler = start_board()
+        styles.init_fonts()
 
-        # Fabriksinställningar
         self.current_stop_id = DEFAULT_STOP_ID
-        self.current_stop_data = None
+        self.current_station = None
         self.current_transport = DEFAULT_TRANSPORT
+        self.last_update = None
+        self.refresh_timer = None
 
-        # REQ#3.4: Läs in sparade standardinställningar vid boot
+        # REQ#3.4: Restore saved settings at boot
         self.load_settings()
 
         log("Connecting to Wifi..")
         self.connect_wifi()
 
-        log("Querying All Stop Groups..")
-        self.stop_groups = dep_service.get_all_stop_groups()
         self.set_current_stop_id(self.current_stop_id)
-        
-        # Demo-data för alla 7 hållplatser i poolen (REQ#1.2 och REQ#3.2)
-        self.stop_data = {
-            "Campus Grasvik": [
-                ("Buss 1", "Kungsmarken", "2 min"),
-                ("Buss 5", "Karlskrona C", "6 min"),
-                ("Buss 1", "Lyckeby", "12 min"),
-                ("Buss 7", "Nattraby centrum", "15 min"),
-                ("Buss 2", "Ronneby Station", "21 min"),
-                ("Buss 1", "Bastasjo", "27 min"),
-                ("Buss 5", "Bergasa station", "34 min")
-            ],
-            "Karlskrona C": [
-                ("Tag 10", "Kopenhamn H", "4 min"),
-                ("Buss 1", "Campus Grasvik", "7 min"),
-                ("Tag 85", "Emmaboda Station", "11 min"),
-                ("Buss 3", "Bastasjo", "16 min"),
-                ("Tag 10", "Malmo C", "22 min"),
-                ("Buss 2", "Ronneby Station", "28 min"),
-                ("Tag 85", "Alvesta Station", "35 min")
-            ],
-            "Kungsmarken": [
-                ("Buss 1", "Campus Grasvik", "3 min"),
-                ("Buss 1", "Karlskrona C", "9 min"),
-                ("Buss 5", "Ronneby Station", "16 min"),
-                ("Buss 7", "Bastasjo", "22 min"),
-                ("Buss 1", "Lyckeby", "28 min"),
-                ("Buss 2", "Bergasa station", "33 min"),
-                ("Buss 7", "Nattraby centrum", "41 min")
-            ],
-            "Ronneby Station": [
-                ("Tag 10", "Karlskrona C", "5 min"),
-                ("Tag 10", "Malmo C", "14 min"),
-                ("Buss 2", "Campus Grasvik", "19 min"),
-                ("Buss 2", "Kungsmarken", "25 min"),
-                ("Tag 85", "Emmaboda Station", "31 min"),
-                ("Buss 7", "Nattraby centrum", "38 min"),
-                ("Tag 10", "Kopenhamn H", "46 min")
-            ],
-            "Bastasjo": [
-                ("Buss 1", "Campus Grasvik", "4 min"),
-                ("Buss 3", "Karlskrona C", "10 min"),
-                ("Buss 1", "Kungsmarken", "18 min"),
-                ("Buss 7", "Ronneby Station", "24 min"),
-                ("Buss 3", "Bergasa station", "30 min"),
-                ("Buss 1", "Lyckeby", "37 min"),
-                ("Buss 7", "Nattraby centrum", "44 min")
-            ],
-            "Nattraby centrum": [
-                ("Buss 7", "Karlskrona C", "6 min"),
-                ("Buss 7", "Campus Grasvik", "13 min"),
-                ("Buss 2", "Ronneby Station", "20 min"),
-                ("Buss 7", "Kungsmarken", "27 min"),
-                ("Buss 1", "Bastasjo", "33 min"),
-                ("Tag 10", "Malmo C", "42 min"),
-                ("Tag 85", "Emmaboda Station", "50 min")
-            ],
-            "Emmaboda Station": [
-                ("Tag 85", "Karlskrona C", "2 min"),
-                ("Tag 85", "Alvesta Station", "12 min"),
-                ("Tag 85", "Kalmar C", "20 min"),
-                ("Tag 10", "Malmo C", "33 min"),
-                ("Buss 2", "Ronneby Station", "40 min"),
-                ("Buss 1", "Campus Grasvik", "48 min"),
-                ("Tag 10", "Kopenhamn H", "57 min")
-            ]
-        }
 
         self.create_ui()
 
         log("student application ready - starting at startup tile (0, 0)")
-    
-    #Inställningshantering (REQ#3.4 och REQ#3.5)
+
+    # Read the saved settings, or factory defaults (REQ#3.4, REQ#3.5)
     def load_settings(self):
         try:
             with open(SETTINGS_FILE, "r") as f:
@@ -132,6 +103,7 @@ class Application:
             self.current_transport = DEFAULT_TRANSPORT
             log("No settings found, using factory default")
 
+    # REQ#3.4: Save the current settings as default
     def save_settings(self):
         try:
             with open(SETTINGS_FILE, "w") as f:
@@ -140,101 +112,128 @@ class Application:
         except Exception as err:
             log("Failed to save settings: %r" % (err,))
 
-    def set_current_stop_id(self, stop_group_id):
-        self.current_stop_id = stop_group_id
-        for stop_group in self.stop_groups:
-            if stop_group["id"] == self.current_stop_id:
-                self.current_stop_data = stop_group
-                break
+    # REQ#3.2: Select a stop from stations.py
+    def set_current_stop_id(self, stop_id):
+        for station in STATIONS:
+            if station[0] == stop_id:
+                self.current_station = station
+                self.current_stop_id = stop_id
+                return
 
-        if len(self.stop_groups) == 0:
-            log("No Stop Groups Loaded!")
-            return
-        
-        if self.current_stop_data is None:
-            self.current_stop_id = self.stop_groups[0]["id"]
-            self.current_stop_data = self.stop_groups[0]
+        # Saved stop is not in stations.py
+        log("Unknown stop id %s, using default" % (stop_id,))
+        if stop_id != DEFAULT_STOP_ID:
+            self.set_current_stop_id(DEFAULT_STOP_ID)
 
-    def set_current_stop(self, stop_group):
-        self.current_stop_id = stop_group["id"]
-        self.current_stop_data = stop_group
-
+    # REQ#1.2: Fetch and show live departures for the selected stop
     def update_departure_table(self):
-        # Uppdatera rubriken på tabellen
-        title = "DEPARTURES: "
-        if self.current_stop_data is not None:
-            title += self.current_stop_data["stops"][0]["name"].upper()
+        title = "DEPARTURES: " + upper_sv(self.current_station[1])
         if self.current_transport != "All":
             title += " (" + self.current_transport.upper() + ")"
         self.lbl_dept_title.set_text(title)
 
-        departures = dep_service.query_departures(self.current_stop_id)
+        # REQ#4.1: Every fetch restarts the 60 second countdown
+        self.refresh_timer.reset()
 
-        # Filtrera baserat på transporttyp (REQ#3.3)
-        if self.current_transport != "All":
-            filtered = [dep for dep in departures if dep["route"]["transport_mode"].upper() == self.current_transport.upper()]
+        try:
+            response = dep_service.query_departures(self.current_station[0])
+            departures = response["departures"]
+        except Exception as err:
+            log("Failed to query departures: %r" % (err,))
+            self.board.show_message("Could not load departures")
+            self.update_status(False)
+            return
+
+        self.last_update = format_time(response.get("timestamp"))
+        self.update_status(True)
+
+        # REQ#3.3: Filter on transport type
+        mode = TRANSPORT_MODES[transport_index(self.current_transport)][1]
+        if mode is not None:
+            filtered = [dep for dep in departures
+                        if dep["route"]["transport_mode"].upper() == mode]
         else:
             filtered = departures
 
-        # Rensa gamla rader
-        for r in range(1, 8):
-            self.table.set_cell_value(r, 0, "")
-            self.table.set_cell_value(r, 1, "")
-            self.table.set_cell_value(r, 2, "")
+        if len(filtered) == 0:
+            self.board.show_message("No departures right now")
+            return
 
-        # Fyll tabellen med de filtrerade avgångarna
-        for row_idx, dep_data in enumerate(filtered, start=1):
-            if row_idx > 7:
-                break
+        # The API sorts by scheduled time, but the board shows the real time
+        filtered = sorted(filtered, key=lambda dep: dep["realtime"] or "")
 
-            line = dep_data["route"]["name"]
-            if line is None:
-                line = dep_data["route"]["designation"]
+        rows = []
+        for dep_data in filtered[:departure_list.ROW_COUNT]:
+            route = dep_data["route"]
+            rows.append((
+                format_time(dep_data["realtime"]),
+                route["name"] or route["designation"] or "",
+                route["destination"]["name"],
+                departure_status(dep_data),
+                route["transport_mode"],
+            ))
+        self.board.show_departures(rows)
 
-            dest = dep_data["route"]["destination"]["name"]
+    # REQ#4.3: Wi-Fi and live data status on the settings screen
+    def update_status(self, data_ok):
+        if self.station.isconnected():
+            self.lbl_wifi.set_text("Wi-Fi: Connected to " + WIFI_SSID)
+        else:
+            self.lbl_wifi.set_text("Wi-Fi: Not connected")
 
-            dep_time = dep_data["realtime"]
-            
-            self.table.set_cell_value(row_idx, 0, line)
-            self.table.set_cell_value(row_idx, 1, dest)
-            self.table.set_cell_value(row_idx, 2, dep_time)
+        if data_ok:
+            self.lbl_live.set_text("Live data: Updated " + self.last_update)
+        elif self.last_update is None:
+            self.lbl_live.set_text("Live data: Unavailable")
+        else:
+            self.lbl_live.set_text("Live data: Failed, last update " + self.last_update)
 
-    def on_stop_changed(self, event):
-        idx = event.get_target_obj().get_selected()
-        if 0 <= idx < len(self.stop_groups):
-            self.set_current_stop(self.stop_groups[idx])
+    # REQ#4.1: Automatic update
+    def on_refresh_timer(self, _timer):
+        try:
             self.update_departure_table()
+        except Exception as err:
+            log("Automatic refresh failed: %r" % (err,))
 
-    def on_transport_changed(self, event):
-        idx = event.get_target_obj().get_selected()
-        if idx == 0:
-            self.current_transport = "All"
-        elif idx == 1:
-            self.current_transport = "Bus"
-        elif idx == 2:
-            self.current_transport = "Train"
+    # REQ#4.2: Manual refresh
+    def on_refresh_clicked(self, _event):
         self.update_departure_table()
 
+    # REQ#3.2: Show the stop chosen in the dropdown
+    def on_stop_changed(self, event):
+        idx = event.get_target_obj().get_selected()
+        if 0 <= idx < len(STATIONS):
+            self.set_current_stop_id(STATIONS[idx][0])
+            self.update_departure_table()
+
+    # REQ#3.3: Apply the transport type chosen in the dropdown
+    def on_transport_changed(self, event):
+        idx = event.get_target_obj().get_selected()
+        if 0 <= idx < len(TRANSPORT_MODES):
+            self.current_transport = TRANSPORT_MODES[idx][0]
+            self.update_departure_table()
+
+    # REQ#3.4: Save Default button
     def on_save_clicked(self, _event):
         self.save_settings()
         self.lbl_status.set_text("Settings saved as default!")
 
+    # REQ#3.5: Go back to the saved defaults, or factory defaults if none are saved
     def on_reset_clicked(self, _event):
-        self.set_current_stop_id(DEFAULT_STOP_ID)
-        self.current_transport = DEFAULT_TRANSPORT
-        self.dd_stops.set_selected(self.stop_groups.index(self.current_stop_data))
-        self.dd_transport.set_selected(0)
-        self.save_settings()
+        self.load_settings()
+        self.set_current_stop_id(self.current_stop_id)
+        self.dd_stops.set_selected(STATIONS.index(self.current_station))
+        self.dd_transport.set_selected(transport_index(self.current_transport))
         self.update_departure_table()
-        self.lbl_status.set_text("Factory defaults restored!")
+        self.lbl_status.set_text("Default settings restored!")
 
+    # Builds the three screens, which the user swipes between (REQ#2.1)
     def create_ui(self):
         self.tileview = lv.tileview(lv.screen_active())
         self.tileview.set_size(600, 450)
         self.tileview.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
 
-        # Startskärm: Tile (0, 0) - Startar alltid här vid boot
-        # Tillåter enbart svep nedåt till Huvudskärm
+        # REQ#1.1: Startup tile (0, 0), shown at boot
         self.tile_startup = self.tileview.add_tile(0, 0, lv.DIR.BOTTOM)
         self.tile_startup.add_style(styles.screen_default, 0)
 
@@ -259,35 +258,36 @@ class Application:
         self.lbl_members.set_style_text_color(lv.color_hex(0xDDDDDD), 0)
         self.lbl_members.align(lv.ALIGN.BOTTOM_MID, 0, -40)
 
-        # Huvudskärm: Tile (0, 1) - Demotabell för kollektivtrafik
-        # Tillåter svep uppåt (Start) och höger (Inställningar)
+        # REQ#1.2: Departures tile (0, 1)
         self.tile_main = self.tileview.add_tile(0, 1, lv.DIR.TOP | lv.DIR.RIGHT)
         self.tile_main.add_style(styles.screen_default, 0)
         self.lbl_dept_title = lv.label(self.tile_main)
+        self.lbl_dept_title.set_width(departure_list.BOARD_WIDTH)
+        self.lbl_dept_title.set_long_mode(lv.label.LONG_MODE.SCROLL_CIRCULAR)
         self.lbl_dept_title.set_text("DEPARTURES")
         self.lbl_dept_title.add_style(styles.text_title, 0)
-        self.lbl_dept_title.align(lv.ALIGN.TOP_MID, 0, 15)
+        self.lbl_dept_title.set_pos(departure_list.BOARD_X, 12)
 
-        self.table = lv.table(self.tile_main)
-        self.table.set_size(540, 360)
-        self.table.align(lv.ALIGN.TOP_MID, 0, 50)
-        self.table.set_style_bg_color(lv.color_hex(0x1E1E1E), 0)
-        self.table.set_style_text_color(lv.color_hex(0xFFFFFF), 0)
-        self.table.set_style_border_width(1, 0)
-        self.table.set_style_border_color(lv.color_hex(0x333333), 0)
+        self.board = departure_list.DepartureBoard(self.tile_main)
 
-        self.table.set_column_width(0, 90)
-        self.table.set_column_width(1, 350)
-        self.table.set_column_width(2, 100)
+        # REQ#4.2: Manuell uppdatering
+        self.btn_refresh = lv.button(self.tile_main)
+        self.btn_refresh.set_size(130, 44)
+        self.btn_refresh.align(lv.ALIGN.BOTTOM_RIGHT, -20, -10)
+        styles.style_button(self.btn_refresh, styles.COLOR_ACCENT)
+        self.btn_refresh.add_event_cb(self.on_refresh_clicked, lv.EVENT.CLICKED, None)
 
-        self.table.set_cell_value(0, 0, "Linje")
-        self.table.set_cell_value(0, 1, "Destination")
-        self.table.set_cell_value(0, 2, "Tid")
+        self.lbl_btn_refresh = lv.label(self.btn_refresh)
+        self.lbl_btn_refresh.set_text("Refresh")
+        self.lbl_btn_refresh.center()
 
-        self.update_departure_table()
+        # NF3: Attribution required by the Trafiklab CC BY 4.0 licence
+        self.lbl_attribution = lv.label(self.tile_main)
+        self.lbl_attribution.set_text("Data from Trafiklab.se (CC BY 4.0)")
+        self.lbl_attribution.add_style(styles.text_sub_title, 0)
+        self.lbl_attribution.align(lv.ALIGN.BOTTOM_LEFT, 20, -24)
 
-        # Inställningar: Tile (1, 1) - REQ#3.1 till REQ#3.5
-        # Till höger om Huvudskärm, svep vänster tillbaka
+        # REQ#3.1: Settings tile (1, 1)
         self.tile_settings = self.tileview.add_tile(1, 1, lv.DIR.LEFT)
         self.tile_settings.add_style(styles.screen_default, 0)
 
@@ -296,69 +296,86 @@ class Application:
         self.lbl_settings_title.add_style(styles.text_title, 0)
         self.lbl_settings_title.align(lv.ALIGN.TOP_MID, 0, 15)
 
-        # REQ#3.2: Dropdown med alla 7 hållplatser
+        # REQ#3.2: Stop dropdown
         self.lbl_stop = lv.label(self.tile_settings)
         self.lbl_stop.set_text("Departure Stop:")
-        self.lbl_stop.add_style(styles.text, 0)
-        self.lbl_stop.align(lv.ALIGN.TOP_LEFT, 50, 65)
+        self.lbl_stop.add_style(styles.text_sub_title, 0)
+        self.lbl_stop.set_pos(30, 60)
 
         self.dd_stops = lv.dropdown(self.tile_settings)
-        stop_names = [stop_group["stops"][0]["name"] for stop_group in self.stop_groups]
-        self.dd_stops.set_options("\n".join(stop_names))
-        self.dd_stops.set_size(220, 40)
-        self.dd_stops.align(lv.ALIGN.TOP_LEFT, 50, 90)
-        if len(self.stop_groups) > 0:
-            self.dd_stops.set_selected(self.stop_groups.index(self.current_stop_data))
+        self.dd_stops.set_options("\n".join([station[1] for station in STATIONS]))
+        self.dd_stops.set_size(340, 44)
+        self.dd_stops.set_pos(30, 82)
+        styles.style_dropdown(self.dd_stops)
+        self.dd_stops.set_selected(STATIONS.index(self.current_station))
         self.dd_stops.add_event_cb(self.on_stop_changed, lv.EVENT.VALUE_CHANGED, None)
 
-        # REQ#3.3: Dropdown för transporttyp
+        # REQ#3.3: Transport type dropdown
         self.lbl_transport = lv.label(self.tile_settings)
         self.lbl_transport.set_text("Transport Type:")
-        self.lbl_transport.add_style(styles.text, 0)
-        self.lbl_transport.align(lv.ALIGN.TOP_RIGHT, -120, 65)
+        self.lbl_transport.add_style(styles.text_sub_title, 0)
+        self.lbl_transport.set_pos(390, 60)
 
         self.dd_transport = lv.dropdown(self.tile_settings)
-        self.dd_transport.set_options("All\nBus\nTrain")
-        self.dd_transport.set_size(220, 40)
-        self.dd_transport.align(lv.ALIGN.TOP_RIGHT, -50, 90)
-        if self.current_transport == "Bus":
-            self.dd_transport.set_selected(1)
-        elif self.current_transport == "Train":
-            self.dd_transport.set_selected(2)
+        self.dd_transport.set_options("\n".join([mode[0] for mode in TRANSPORT_MODES]))
+        self.dd_transport.set_size(180, 44)
+        self.dd_transport.set_pos(390, 82)
+        styles.style_dropdown(self.dd_transport)
+        self.dd_transport.set_selected(transport_index(self.current_transport))
         self.dd_transport.add_event_cb(self.on_transport_changed, lv.EVENT.VALUE_CHANGED, None)
 
-        # REQ#3.4: Spara som standardknapp
+        # REQ#3.4: Save button
         self.btn_save = lv.button(self.tile_settings)
-        self.btn_save.set_size(220, 45)
-        self.btn_save.align(lv.ALIGN.TOP_LEFT, 50, 160)
-        self.btn_save.set_style_bg_color(lv.color_hex(0x008800), 0)
+        self.btn_save.set_size(265, 46)
+        self.btn_save.set_pos(30, 144)
+        styles.style_button(self.btn_save, styles.COLOR_ACCENT)
         self.btn_save.add_event_cb(self.on_save_clicked, lv.EVENT.CLICKED, None)
 
         self.lbl_btn_save = lv.label(self.btn_save)
         self.lbl_btn_save.set_text("Save Default")
         self.lbl_btn_save.center()
 
-        # REQ#3.5: Återställ till fabriksinställningar-knapp
+        # REQ#3.5: Reset button
         self.btn_reset = lv.button(self.tile_settings)
-        self.btn_reset.set_size(220, 45)
-        self.btn_reset.align(lv.ALIGN.TOP_RIGHT, -50, 160)
-        self.btn_reset.set_style_bg_color(lv.color_hex(0x880000), 0)
+        self.btn_reset.set_size(265, 46)
+        self.btn_reset.set_pos(305, 144)
+        styles.style_button(self.btn_reset, styles.COLOR_DANGER)
         self.btn_reset.add_event_cb(self.on_reset_clicked, lv.EVENT.CLICKED, None)
 
         self.lbl_btn_reset = lv.label(self.btn_reset)
-        self.lbl_btn_reset.set_text("Factory Reset")
+        self.lbl_btn_reset.set_text("Reset to Default")
         self.lbl_btn_reset.center()
 
-        # Statusmeddelande
+        # REQ#4.3: Status panel
+        self.panel_status = departure_list.new_box(self.tile_settings, 30, 208, 540, 84,
+                                                   styles.COLOR_PANEL)
+
+        self.lbl_wifi = lv.label(self.panel_status)
+        self.lbl_wifi.set_style_text_font(styles.font_row, 0)
+        self.lbl_wifi.add_style(styles.text, 0)
+        self.lbl_wifi.set_pos(16, 16)
+
+        self.lbl_live = lv.label(self.panel_status)
+        self.lbl_live.set_style_text_font(styles.font_row, 0)
+        self.lbl_live.add_style(styles.text, 0)
+        self.lbl_live.set_pos(16, 46)
+
         self.lbl_status = lv.label(self.tile_settings)
         self.lbl_status.set_text("")
         self.lbl_status.set_style_text_color(lv.color_hex(0x00E5FF), 0)
-        self.lbl_status.align(lv.ALIGN.BOTTOM_MID, 0, -30)
+        self.lbl_status.set_width(540)
+        self.lbl_status.set_style_text_align(lv.TEXT_ALIGN.CENTER, 0)
+        self.lbl_status.set_pos(30, 312)
 
-    @staticmethod
-    def connect_wifi():
+        # REQ#4.1: Start the automatic update. The first fetch runs here, once all widgets exist
+        self.refresh_timer = lv.timer_create(self.on_refresh_timer, REFRESH_INTERVAL_MS, None)
+        self.update_departure_table()
+
+    # Connect at boot and give up after 15 seconds (REQ#4.3)
+    def connect_wifi(self):
         log("connecting to Wi-Fi SSID: " + WIFI_SSID)
         station = network.WLAN(network.STA_IF)
+        self.station = station
         station.active(True)
         station.connect(WIFI_SSID, WIFI_PASSWORD)
         started = time.ticks_ms()
