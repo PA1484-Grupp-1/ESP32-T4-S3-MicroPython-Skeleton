@@ -45,7 +45,7 @@ class Application:
         self.connect_wifi()
 
         log("Querying All Stop Groups..")
-        self.stop_groups = dep_service.query_all_stop_groups()
+        self.stop_groups = dep_service.get_all_stop_groups()
         self.set_current_stop_id(self.current_stop_id)
         
         # Demo-data för alla 7 hållplatser i poolen (REQ#1.2 och REQ#3.2)
