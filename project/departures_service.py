@@ -1,24 +1,18 @@
+# Trafiklab Realtime API requests (REQ#1.2)
 import requests
-import json
 
 from secrets_env import TRAFIKLAB_API_KEY
 
-BAKED_STATIONS_FILE = "stations.json"
-
-TARGET_LOCATION = (56.18684333961802, 15.61205558484464) # Middle of Karlskrona
+TARGET_LOCATION = (56.18684333961802, 15.61205558484464)  # Middle of Karlskrona
 MAX_DISTANCE = 0.05
 
+
 def within_target(lat, lon) -> bool:
-    return ((lat - TARGET_LOCATION[0])**2 + (lon - TARGET_LOCATION[1])**2) <= (MAX_DISTANCE * MAX_DISTANCE)
+    return (((lat - TARGET_LOCATION[0])**2 + (lon - TARGET_LOCATION[1])**2)
+            <= (MAX_DISTANCE * MAX_DISTANCE))
 
-def get_all_stop_groups() -> list:
-    #if __name__ == "__main__":
-    #    return query_all_stop_groups()
 
-    #with open(BAKED_STATIONS_FILE, "r") as f:
-    #    return json.load(f)
-    return []
-
+# PC-only: regenerates stations.py (see below). Never called on the device.
 def query_all_stop_groups() -> list:
     GET_STOPS_URL = "https://realtime-api.trafiklab.se/v1/stops/list?key={API_KEY}"
 
@@ -40,20 +34,22 @@ def query_all_stop_groups() -> list:
 
     return stop_groups
 
-def query_departures(stop_group_id: str) -> list:
-    GET_DEPARTURES_URL = "https://realtime-api.trafiklab.se/v1/departures/{STOP_GROUP_ID}?key={API_KEY}"
 
-    result: requests.Response = requests.get(GET_DEPARTURES_URL.format(STOP_GROUP_ID=stop_group_id, API_KEY=TRAFIKLAB_API_KEY))
-    
-    body = result.json()
-    
-    return body["departures"]
+# REQ#1.2: Live departures for one stop, and the server time used by REQ#4.3
+def query_departures(stop_group_id: str) -> dict:
+    GET_DEPARTURES_URL = ("https://realtime-api.trafiklab.se/v1/departures/"
+                          "{STOP_GROUP_ID}?key={API_KEY}")
 
-#if __name__ == "__main__":
+    result: requests.Response = requests.get(GET_DEPARTURES_URL.format(
+        STOP_GROUP_ID=stop_group_id, API_KEY=TRAFIKLAB_API_KEY))
+
+    return result.json()
+
+# PC-only generator for stations.py. Uncomment to run it
+# if __name__ == "__main__":
 #    stop_groups = query_all_stop_groups()
-#    export_stops = ["\t[ \"" + stop_group["id"] + "\", \"" + stop_group["stops"][0]["name"] + "\" ]," for stop_group in stop_groups]
+#    export_stops = ["    [\"" + stop_group["id"] + "\", \"" + stop_group["stops"][0]["name"]
+#                    + "\"]," for stop_group in stop_groups]
 #    joined = "\n".join(export_stops)[:-1]
 #    with open("project/stations.py", "w", encoding="UTF8") as f:
 #        f.write(f"stations = [\n{joined}\n]")
-    #with open("project/" + BAKED_STATIONS_FILE, "w") as f:
-    #    json.dump(stop_groups, f, indent=4, ensure_ascii=False)
