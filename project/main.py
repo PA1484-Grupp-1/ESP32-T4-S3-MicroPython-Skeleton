@@ -147,6 +147,10 @@ class Application:
                 self.current_stop_data = stop_group
                 break
 
+        if len(self.stop_groups) == 0:
+            log("No Stop Groups Loaded!")
+            return
+        
         if self.current_stop_data is None:
             self.current_stop_id = self.stop_groups[0]["id"]
             self.current_stop_data = self.stop_groups[0]
@@ -157,7 +161,9 @@ class Application:
 
     def update_departure_table(self):
         # Uppdatera rubriken på tabellen
-        title = "DEPARTURES: " + self.current_stop_data["stops"][0]["name"].upper()
+        title = "DEPARTURES: "
+        if self.current_stop_data is not None:
+            title += self.current_stop_data["stops"][0]["name"].upper()
         if self.current_transport != "All":
             title += " (" + self.current_transport.upper() + ")"
         self.lbl_dept_title.set_text(title)
@@ -301,7 +307,8 @@ class Application:
         self.dd_stops.set_options("\n".join(stop_names))
         self.dd_stops.set_size(220, 40)
         self.dd_stops.align(lv.ALIGN.TOP_LEFT, 50, 90)
-        self.dd_stops.set_selected(self.stop_groups.index(self.current_stop_data))
+        if len(self.stop_groups) > 0:
+            self.dd_stops.set_selected(self.stop_groups.index(self.current_stop_data))
         self.dd_stops.add_event_cb(self.on_stop_changed, lv.EVENT.VALUE_CHANGED, None)
 
         # REQ#3.3: Dropdown för transporttyp

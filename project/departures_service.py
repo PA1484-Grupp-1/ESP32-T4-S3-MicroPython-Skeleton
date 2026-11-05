@@ -15,8 +15,9 @@ def get_all_stop_groups() -> list:
     #if __name__ == "__main__":
     #    return query_all_stop_groups()
 
-    with open(BAKED_STATIONS_FILE, "r") as f:
-        return json.load(f)
+    #with open(BAKED_STATIONS_FILE, "r") as f:
+    #    return json.load(f)
+    return []
 
 def query_all_stop_groups() -> list:
     GET_STOPS_URL = "https://realtime-api.trafiklab.se/v1/stops/list?key={API_KEY}"
@@ -50,5 +51,9 @@ def query_departures(stop_group_id: str) -> list:
 
 #if __name__ == "__main__":
 #    stop_groups = query_all_stop_groups()
-#    with open("project/" + BAKED_STATIONS_FILE, "w") as f:
-#        json.dump(stop_groups, f, indent=4, ensure_ascii=False)
+#    export_stops = ["\t{ \"" + stop_group["id"] + "\": \"" + stop_group["stops"][0]["name"] + "\" }," for stop_group in stop_groups]
+#    joined = "\n".join(export_stops)[:-1]
+#    with open("project/stations.py", "w", encoding="UTF8") as f:
+#        f.write(f"stations = [\n{joined}\n]")
+    #with open("project/" + BAKED_STATIONS_FILE, "w") as f:
+    #    json.dump(stop_groups, f, indent=4, ensure_ascii=False)
