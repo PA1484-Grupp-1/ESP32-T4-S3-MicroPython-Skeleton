@@ -11,10 +11,11 @@ from debug_log import log
 from secrets_env import WIFI_SSID, WIFI_PASSWORD
 
 import styles
+import departures_service as dep_service
 
 SETTINGS_FILE = "settings.json"
-FACTORY_STOP = "Campus Grasvik"
-FACTORY_TRANSPORT = "All"
+DEFAULT_STOP_ID = "740032188" # Campus Gräsvik Id
+DEFAULT_TRANSPORT = "All"
 
 # Lista med alla 7 hållplatser i poolen (REQ#1.2 och REQ#3.2)
 AVAILABLE_STOPS = [
@@ -33,12 +34,27 @@ class Application:
         self.display, self.touch, self.handler = start_board()
 
         # Fabriksinställningar
-        self.current_stop = FACTORY_STOP
-        self.current_transport = FACTORY_TRANSPORT
+        self.current_stop_id = DEFAULT_STOP_ID
+        self.current_stop_data = None
+        self.current_transport = DEFAULT_TRANSPORT
 
         # REQ#3.4: Läs in sparade standardinställningar vid boot
         self.load_settings()
 
+        log("Connecting to Wifi..")
+        self.connect_wifi()
+
+        log("Querying All Stop Groups..")
+        self.stop_groups = dep_service.query_all_stop_groups()
+        for stop_group in self.stop_groups:
+            if stop_group["id"] == self.current_stop_id:
+                self.current_stop_data = stop_group
+                break
+
+        if self.current_stop_data is None:
+            self.current_stop_id = self.stop_groups[0]["id"]
+            self.current_stop_data = self.stop_groups[0]
+        
         # Demo-data för alla 7 hållplatser i poolen (REQ#1.2 och REQ#3.2)
         self.stop_data = {
             "Campus Grasvik": [
@@ -115,35 +131,34 @@ class Application:
         try:
             with open(SETTINGS_FILE, "r") as f:
                 data = json.load(f)
-                saved_stop = data.get("stop", FACTORY_STOP)
-                self.current_stop = saved_stop if saved_stop in AVAILABLE_STOPS else FACTORY_STOP
-                self.current_transport = data.get("transport", FACTORY_TRANSPORT)
+                self.current_stop_id = data.get("stop", DEFAULT_STOP_ID)
+                self.current_transport = data.get("transport", DEFAULT_TRANSPORT)
                 log("Settings loaded from flash")
         except Exception:
-            self.current_stop = FACTORY_STOP
-            self.current_transport = FACTORY_TRANSPORT
+            self.current_stop_id = DEFAULT_STOP_ID
+            self.current_transport = DEFAULT_TRANSPORT
             log("No settings found, using factory default")
 
     def save_settings(self):
         try:
             with open(SETTINGS_FILE, "w") as f:
-                json.dump({"stop": self.current_stop, "transport": self.current_transport}, f)
+                json.dump({"stop": self.current_stop_id, "transport": self.current_transport}, f)
             log("Settings saved to flash")
         except Exception as err:
             log("Failed to save settings: %r" % (err,))
 
     def update_departure_table(self):
         # Uppdatera rubriken på tabellen
-        title = "DEPARTURES: " + self.current_stop.upper()
+        title = "DEPARTURES: " + self.current_stop_data["stops"][0]["name"].upper()
         if self.current_transport != "All":
             title += " (" + self.current_transport.upper() + ")"
         self.lbl_dept_title.set_text(title)
 
-        departures = self.stop_data.get(self.current_stop, [])
+        departures = dep_service.query_departures(self.current_stop_id)
 
         # Filtrera baserat på transporttyp (REQ#3.3)
         if self.current_transport != "All":
-            filtered = [row for row in departures if row[0].startswith(self.current_transport)]
+            filtered = [dep for dep in departures if dep["route"]["transport_mode"].upper() == self.current_transport.upper()]
         else:
             filtered = departures
 
@@ -154,16 +169,25 @@ class Application:
             self.table.set_cell_value(r, 2, "")
 
         # Fyll tabellen med de filtrerade avgångarna
-        for row_idx, (line, dest, dep_time) in enumerate(filtered, start=1):
+        for row_idx, dep_data in enumerate(filtered, start=1):
             if row_idx > 7:
                 break
+
+            line = dep_data["route"]["name"]
+            if line is None:
+                line = dep_data["route"]["designation"]
+
+            dest = dep_data["route"]["destination"]["name"]
+
+            dep_time = dep_data["realtime"]
+            
             self.table.set_cell_value(row_idx, 0, line)
             self.table.set_cell_value(row_idx, 1, dest)
             self.table.set_cell_value(row_idx, 2, dep_time)
 
     def on_stop_changed(self, event):
         idx = event.get_target_obj().get_selected()
-        if 0 <= idx < len(AVAILABLE_STOPS):
+        if 0 <= idx < len(self.stop_groups):
             self.current_stop = AVAILABLE_STOPS[idx]
             self.update_departure_table()
 
@@ -172,9 +196,9 @@ class Application:
         if idx == 0:
             self.current_transport = "All"
         elif idx == 1:
-            self.current_transport = "Buss"
+            self.current_transport = "Bus"
         elif idx == 2:
-            self.current_transport = "Tag"
+            self.current_transport = "Train"
         self.update_departure_table()
 
     def on_save_clicked(self, _event):
@@ -182,9 +206,9 @@ class Application:
         self.lbl_status.set_text("Settings saved as default!")
 
     def on_reset_clicked(self, _event):
-        self.current_stop = FACTORY_STOP
-        self.current_transport = FACTORY_TRANSPORT
-        self.dd_stops.set_selected(AVAILABLE_STOPS.index(FACTORY_STOP))
+        self.current_stop = DEFAULT_STOP_ID
+        self.current_transport = DEFAULT_TRANSPORT
+        self.dd_stops.set_selected(AVAILABLE_STOPS.index(DEFAULT_STOP_ID))
         self.dd_transport.set_selected(0)
         self.save_settings()
         self.update_departure_table()
@@ -211,13 +235,13 @@ class Application:
         self.lbl_ver.align(lv.ALIGN.TOP_MID, 0, 85)
 
         self.lbl_group = lv.label(self.tile_startup)
-        self.lbl_group.set_text("Grupp 1")
+        self.lbl_group.set_text("Group 1")
         self.lbl_group.set_style_text_color(lv.color_hex(0xFFFFFF), 0)
         self.lbl_group.set_style_text_font(lv.font_montserrat_28, 0)
         self.lbl_group.align(lv.ALIGN.CENTER, 0, -20)
 
         self.lbl_members = lv.label(self.tile_startup)
-        self.lbl_members.set_text("Medlemmar: Ragnar, Anton, Filip, Axel, Jonathan")
+        self.lbl_members.set_text("Members: Ragnar, Anton, Filip, Axel, Jonathan")
         self.lbl_members.set_style_text_color(lv.color_hex(0xDDDDDD), 0)
         self.lbl_members.align(lv.ALIGN.BOTTOM_MID, 0, -40)
 
@@ -282,9 +306,9 @@ class Application:
         self.dd_transport.set_options("All\nBuss\nTag")
         self.dd_transport.set_size(220, 40)
         self.dd_transport.align(lv.ALIGN.TOP_RIGHT, -50, 90)
-        if self.current_transport == "Buss":
+        if self.current_transport == "Bus":
             self.dd_transport.set_selected(1)
-        elif self.current_transport == "Tag":
+        elif self.current_transport == "Train":
             self.dd_transport.set_selected(2)
         self.dd_transport.add_event_cb(self.on_transport_changed, lv.EVENT.VALUE_CHANGED, None)
 
