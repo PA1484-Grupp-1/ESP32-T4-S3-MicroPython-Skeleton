@@ -46,14 +46,7 @@ class Application:
 
         log("Querying All Stop Groups..")
         self.stop_groups = dep_service.query_all_stop_groups()
-        for stop_group in self.stop_groups:
-            if stop_group["id"] == self.current_stop_id:
-                self.current_stop_data = stop_group
-                break
-
-        if self.current_stop_data is None:
-            self.current_stop_id = self.stop_groups[0]["id"]
-            self.current_stop_data = self.stop_groups[0]
+        self.set_current_stop_id(self.current_stop_id)
         
         # Demo-data för alla 7 hållplatser i poolen (REQ#1.2 och REQ#3.2)
         self.stop_data = {
@@ -125,7 +118,7 @@ class Application:
         self.create_ui()
 
         log("student application ready - starting at startup tile (0, 0)")
-
+    
     #Inställningshantering (REQ#3.4 och REQ#3.5)
     def load_settings(self):
         try:
@@ -146,6 +139,21 @@ class Application:
             log("Settings saved to flash")
         except Exception as err:
             log("Failed to save settings: %r" % (err,))
+
+    def set_current_stop_id(self, stop_group_id):
+        self.current_stop_id = stop_group_id
+        for stop_group in self.stop_groups:
+            if stop_group["id"] == self.current_stop_id:
+                self.current_stop_data = stop_group
+                break
+
+        if self.current_stop_data is None:
+            self.current_stop_id = self.stop_groups[0]["id"]
+            self.current_stop_data = self.stop_groups[0]
+
+    def set_current_stop(self, stop_group):
+        self.current_stop_id = stop_group["id"]
+        self.current_stop_data = stop_group
 
     def update_departure_table(self):
         # Uppdatera rubriken på tabellen
@@ -188,7 +196,7 @@ class Application:
     def on_stop_changed(self, event):
         idx = event.get_target_obj().get_selected()
         if 0 <= idx < len(self.stop_groups):
-            self.current_stop = AVAILABLE_STOPS[idx]
+            self.set_current_stop(self.stop_groups[idx])
             self.update_departure_table()
 
     def on_transport_changed(self, event):
@@ -206,9 +214,9 @@ class Application:
         self.lbl_status.set_text("Settings saved as default!")
 
     def on_reset_clicked(self, _event):
-        self.current_stop = DEFAULT_STOP_ID
+        self.set_current_stop_id(DEFAULT_STOP_ID)
         self.current_transport = DEFAULT_TRANSPORT
-        self.dd_stops.set_selected(AVAILABLE_STOPS.index(DEFAULT_STOP_ID))
+        self.dd_stops.set_selected(self.stop_groups.index(self.current_stop_data))
         self.dd_transport.set_selected(0)
         self.save_settings()
         self.update_departure_table()
@@ -289,11 +297,11 @@ class Application:
         self.lbl_stop.align(lv.ALIGN.TOP_LEFT, 50, 65)
 
         self.dd_stops = lv.dropdown(self.tile_settings)
-        self.dd_stops.set_options("\n".join(AVAILABLE_STOPS))
+        stop_names = [stop_group["stops"][0]["name"] for stop_group in self.stop_groups]
+        self.dd_stops.set_options("\n".join(stop_names))
         self.dd_stops.set_size(220, 40)
         self.dd_stops.align(lv.ALIGN.TOP_LEFT, 50, 90)
-        if self.current_stop in AVAILABLE_STOPS:
-            self.dd_stops.set_selected(AVAILABLE_STOPS.index(self.current_stop))
+        self.dd_stops.set_selected(self.stop_groups.index(self.current_stop_data))
         self.dd_stops.add_event_cb(self.on_stop_changed, lv.EVENT.VALUE_CHANGED, None)
 
         # REQ#3.3: Dropdown för transporttyp
@@ -303,7 +311,7 @@ class Application:
         self.lbl_transport.align(lv.ALIGN.TOP_RIGHT, -120, 65)
 
         self.dd_transport = lv.dropdown(self.tile_settings)
-        self.dd_transport.set_options("All\nBuss\nTag")
+        self.dd_transport.set_options("All\nBus\nTrain")
         self.dd_transport.set_size(220, 40)
         self.dd_transport.align(lv.ALIGN.TOP_RIGHT, -50, 90)
         if self.current_transport == "Bus":
