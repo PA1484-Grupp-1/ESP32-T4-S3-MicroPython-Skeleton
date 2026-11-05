@@ -22,9 +22,17 @@ DEFAULT_TRANSPORT = "All"
 STATIONS = sorted(stations, key=lambda s: s[1])
 
 
+# MicroPython's str.upper() only converts ASCII letters
+def upper_sv(text):
+    for lower, upper in (("å", "Å"), ("ä", "Ä"), ("ö", "Ö"), ("é", "É"), ("ü", "Ü"), ("æ", "Æ"), ("ø", "Ø")):
+        text = text.replace(lower, upper)
+    return text.upper()
+
+
 class Application:
     def __init__(self):
         self.display, self.touch, self.handler = start_board()
+        styles.init_fonts()
 
         # Fabriksinställningar
         self.current_stop_id = DEFAULT_STOP_ID
@@ -85,7 +93,7 @@ class Application:
 
     def update_departure_table(self):
         # Uppdatera rubriken på tabellen
-        title = "DEPARTURES: " + self.current_station[1].upper()
+        title = "DEPARTURES: " + upper_sv(self.current_station[1])
         if self.current_transport != "All":
             title += " (" + self.current_transport.upper() + ")"
         self.lbl_dept_title.set_text(title)
@@ -235,6 +243,7 @@ class Application:
 
         self.dd_stops = lv.dropdown(self.tile_settings)
         self.dd_stops.set_options("\n".join([station[1] for station in STATIONS]))
+        self.dd_stops.get_list().set_style_text_font(styles.font_normal, 0)
         self.dd_stops.set_size(220, 40)
         self.dd_stops.align(lv.ALIGN.TOP_LEFT, 50, 90)
         self.dd_stops.set_selected(STATIONS.index(self.current_station))
