@@ -12,21 +12,14 @@ from secrets_env import WIFI_SSID, WIFI_PASSWORD
 
 import styles
 import departures_service as dep_service
+from stations import stations
 
 SETTINGS_FILE = "settings.json"
 DEFAULT_STOP_ID = "740032188" # Campus Gräsvik Id
 DEFAULT_TRANSPORT = "All"
 
-# Lista med alla 7 hållplatser i poolen (REQ#1.2 och REQ#3.2)
-AVAILABLE_STOPS = [
-    "Campus Grasvik",
-    "Karlskrona C",
-    "Kungsmarken",
-    "Ronneby Station",
-    "Bastasjo",
-    "Nattraby centrum",
-    "Emmaboda Station"
-]
+# stations.py is the complete pool of selectable stops: [id, name]
+STATIONS = sorted(stations, key=lambda s: s[1])
 
 
 class Application:
@@ -35,7 +28,7 @@ class Application:
 
         # Fabriksinställningar
         self.current_stop_id = DEFAULT_STOP_ID
-        self.current_stop_data = None
+        self.current_station = None
         self.current_transport = DEFAULT_TRANSPORT
 
         # REQ#3.4: Läs in sparade standardinställningar vid boot
@@ -44,76 +37,7 @@ class Application:
         log("Connecting to Wifi..")
         self.connect_wifi()
 
-        log("Querying All Stop Groups..")
-        self.stop_groups = dep_service.get_all_stop_groups()
         self.set_current_stop_id(self.current_stop_id)
-        
-        # Demo-data för alla 7 hållplatser i poolen (REQ#1.2 och REQ#3.2)
-        self.stop_data = {
-            "Campus Grasvik": [
-                ("Buss 1", "Kungsmarken", "2 min"),
-                ("Buss 5", "Karlskrona C", "6 min"),
-                ("Buss 1", "Lyckeby", "12 min"),
-                ("Buss 7", "Nattraby centrum", "15 min"),
-                ("Buss 2", "Ronneby Station", "21 min"),
-                ("Buss 1", "Bastasjo", "27 min"),
-                ("Buss 5", "Bergasa station", "34 min")
-            ],
-            "Karlskrona C": [
-                ("Tag 10", "Kopenhamn H", "4 min"),
-                ("Buss 1", "Campus Grasvik", "7 min"),
-                ("Tag 85", "Emmaboda Station", "11 min"),
-                ("Buss 3", "Bastasjo", "16 min"),
-                ("Tag 10", "Malmo C", "22 min"),
-                ("Buss 2", "Ronneby Station", "28 min"),
-                ("Tag 85", "Alvesta Station", "35 min")
-            ],
-            "Kungsmarken": [
-                ("Buss 1", "Campus Grasvik", "3 min"),
-                ("Buss 1", "Karlskrona C", "9 min"),
-                ("Buss 5", "Ronneby Station", "16 min"),
-                ("Buss 7", "Bastasjo", "22 min"),
-                ("Buss 1", "Lyckeby", "28 min"),
-                ("Buss 2", "Bergasa station", "33 min"),
-                ("Buss 7", "Nattraby centrum", "41 min")
-            ],
-            "Ronneby Station": [
-                ("Tag 10", "Karlskrona C", "5 min"),
-                ("Tag 10", "Malmo C", "14 min"),
-                ("Buss 2", "Campus Grasvik", "19 min"),
-                ("Buss 2", "Kungsmarken", "25 min"),
-                ("Tag 85", "Emmaboda Station", "31 min"),
-                ("Buss 7", "Nattraby centrum", "38 min"),
-                ("Tag 10", "Kopenhamn H", "46 min")
-            ],
-            "Bastasjo": [
-                ("Buss 1", "Campus Grasvik", "4 min"),
-                ("Buss 3", "Karlskrona C", "10 min"),
-                ("Buss 1", "Kungsmarken", "18 min"),
-                ("Buss 7", "Ronneby Station", "24 min"),
-                ("Buss 3", "Bergasa station", "30 min"),
-                ("Buss 1", "Lyckeby", "37 min"),
-                ("Buss 7", "Nattraby centrum", "44 min")
-            ],
-            "Nattraby centrum": [
-                ("Buss 7", "Karlskrona C", "6 min"),
-                ("Buss 7", "Campus Grasvik", "13 min"),
-                ("Buss 2", "Ronneby Station", "20 min"),
-                ("Buss 7", "Kungsmarken", "27 min"),
-                ("Buss 1", "Bastasjo", "33 min"),
-                ("Tag 10", "Malmo C", "42 min"),
-                ("Tag 85", "Emmaboda Station", "50 min")
-            ],
-            "Emmaboda Station": [
-                ("Tag 85", "Karlskrona C", "2 min"),
-                ("Tag 85", "Alvesta Station", "12 min"),
-                ("Tag 85", "Kalmar C", "20 min"),
-                ("Tag 10", "Malmo C", "33 min"),
-                ("Buss 2", "Ronneby Station", "40 min"),
-                ("Buss 1", "Campus Grasvik", "48 min"),
-                ("Tag 10", "Kopenhamn H", "57 min")
-            ]
-        }
 
         self.create_ui()
 
@@ -140,35 +64,44 @@ class Application:
         except Exception as err:
             log("Failed to save settings: %r" % (err,))
 
-    def set_current_stop_id(self, stop_group_id):
-        self.current_stop_id = stop_group_id
-        for stop_group in self.stop_groups:
-            if stop_group["id"] == self.current_stop_id:
-                self.current_stop_data = stop_group
-                break
+    def set_current_stop_id(self, stop_id):
+        for station in STATIONS:
+            if station[0] == stop_id:
+                self.current_station = station
+                self.current_stop_id = stop_id
+                return
 
-        if len(self.stop_groups) == 0:
-            log("No Stop Groups Loaded!")
-            return
-        
-        if self.current_stop_data is None:
-            self.current_stop_id = self.stop_groups[0]["id"]
-            self.current_stop_data = self.stop_groups[0]
+        # Saved stop is not in stations.py
+        log("Unknown stop id %s, using default" % (stop_id,))
+        if stop_id != DEFAULT_STOP_ID:
+            self.set_current_stop_id(DEFAULT_STOP_ID)
 
-    def set_current_stop(self, stop_group):
-        self.current_stop_id = stop_group["id"]
-        self.current_stop_data = stop_group
+    @staticmethod
+    def format_time(timestamp):
+        # "2026-11-05T14:30:00" -> "14:30"
+        if timestamp is None:
+            return ""
+        return timestamp[11:16] if len(timestamp) >= 16 else timestamp
 
     def update_departure_table(self):
         # Uppdatera rubriken på tabellen
-        title = "DEPARTURES: "
-        if self.current_stop_data is not None:
-            title += self.current_stop_data["stops"][0]["name"].upper()
+        title = "DEPARTURES: " + self.current_station[1].upper()
         if self.current_transport != "All":
             title += " (" + self.current_transport.upper() + ")"
         self.lbl_dept_title.set_text(title)
 
-        departures = dep_service.query_departures(self.current_stop_id)
+        # Rensa gamla rader
+        for r in range(1, 8):
+            self.table.set_cell_value(r, 0, "")
+            self.table.set_cell_value(r, 1, "")
+            self.table.set_cell_value(r, 2, "")
+
+        try:
+            departures = dep_service.query_departures(self.current_station[0])
+        except Exception as err:
+            log("Failed to query departures: %r" % (err,))
+            self.table.set_cell_value(1, 1, "Could not load departures")
+            return
 
         # Filtrera baserat på transporttyp (REQ#3.3)
         if self.current_transport != "All":
@@ -176,11 +109,9 @@ class Application:
         else:
             filtered = departures
 
-        # Rensa gamla rader
-        for r in range(1, 8):
-            self.table.set_cell_value(r, 0, "")
-            self.table.set_cell_value(r, 1, "")
-            self.table.set_cell_value(r, 2, "")
+        if len(filtered) == 0:
+            self.table.set_cell_value(1, 1, "No departures right now")
+            return
 
         # Fyll tabellen med de filtrerade avgångarna
         for row_idx, dep_data in enumerate(filtered, start=1):
@@ -193,7 +124,7 @@ class Application:
 
             dest = dep_data["route"]["destination"]["name"]
 
-            dep_time = dep_data["realtime"]
+            dep_time = self.format_time(dep_data["realtime"])
             
             self.table.set_cell_value(row_idx, 0, line)
             self.table.set_cell_value(row_idx, 1, dest)
@@ -201,8 +132,8 @@ class Application:
 
     def on_stop_changed(self, event):
         idx = event.get_target_obj().get_selected()
-        if 0 <= idx < len(self.stop_groups):
-            self.set_current_stop(self.stop_groups[idx])
+        if 0 <= idx < len(STATIONS):
+            self.set_current_stop_id(STATIONS[idx][0])
             self.update_departure_table()
 
     def on_transport_changed(self, event):
@@ -222,7 +153,7 @@ class Application:
     def on_reset_clicked(self, _event):
         self.set_current_stop_id(DEFAULT_STOP_ID)
         self.current_transport = DEFAULT_TRANSPORT
-        self.dd_stops.set_selected(self.stop_groups.index(self.current_stop_data))
+        self.dd_stops.set_selected(STATIONS.index(self.current_station))
         self.dd_transport.set_selected(0)
         self.save_settings()
         self.update_departure_table()
@@ -296,19 +227,17 @@ class Application:
         self.lbl_settings_title.add_style(styles.text_title, 0)
         self.lbl_settings_title.align(lv.ALIGN.TOP_MID, 0, 15)
 
-        # REQ#3.2: Dropdown med alla 7 hållplatser
+        # REQ#3.2: Dropdown med alla hållplatser i stations.py
         self.lbl_stop = lv.label(self.tile_settings)
         self.lbl_stop.set_text("Departure Stop:")
         self.lbl_stop.add_style(styles.text, 0)
         self.lbl_stop.align(lv.ALIGN.TOP_LEFT, 50, 65)
 
         self.dd_stops = lv.dropdown(self.tile_settings)
-        stop_names = [stop_group["stops"][0]["name"] for stop_group in self.stop_groups]
-        self.dd_stops.set_options("\n".join(stop_names))
+        self.dd_stops.set_options("\n".join([station[1] for station in STATIONS]))
         self.dd_stops.set_size(220, 40)
         self.dd_stops.align(lv.ALIGN.TOP_LEFT, 50, 90)
-        if len(self.stop_groups) > 0:
-            self.dd_stops.set_selected(self.stop_groups.index(self.current_stop_data))
+        self.dd_stops.set_selected(STATIONS.index(self.current_station))
         self.dd_stops.add_event_cb(self.on_stop_changed, lv.EVENT.VALUE_CHANGED, None)
 
         # REQ#3.3: Dropdown för transporttyp
