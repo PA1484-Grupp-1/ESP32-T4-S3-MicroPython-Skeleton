@@ -51,7 +51,7 @@ def query_departures(stop_group_id: str) -> list:
 
 #if __name__ == "__main__":
 #    stop_groups = query_all_stop_groups()
-#    export_stops = ["\t{ \"" + stop_group["id"] + "\": \"" + stop_group["stops"][0]["name"] + "\" }," for stop_group in stop_groups]
+#    export_stops = ["\t[ \"" + stop_group["id"] + "\", \"" + stop_group["stops"][0]["name"] + "\" ]," for stop_group in stop_groups]
 #    joined = "\n".join(export_stops)[:-1]
 #    with open("project/stations.py", "w", encoding="UTF8") as f:
 #        f.write(f"stations = [\n{joined}\n]")
