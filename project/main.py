@@ -12,63 +12,36 @@ from secrets_env import WIFI_SSID, WIFI_PASSWORD
 
 import styles
 import departures_service as dep_service
+from user_settings import UserSettings, DEFAULT_STOP_ID
 from stations import stations
-
-SETTINGS_FILE = "settings.json"
-DEFAULT_STOP_ID = "740032188" # Campus Gräsvik Id
-DEFAULT_TRANSPORT = "All"
 
 # stations.py is the complete pool of selectable stops: [id, name]
 STATIONS = sorted(stations, key=lambda s: s[1])
-
 
 class Application:
     def __init__(self):
         self.display, self.touch, self.handler = start_board()
 
-        # Fabriksinställningar
-        self.current_stop_id = DEFAULT_STOP_ID
+        # User Settings
+        # REQ#3.4: Load Saved User Settings at Startup
+        self.settings = UserSettings.reload()
         self.current_station = None
-        self.current_transport = DEFAULT_TRANSPORT
-
-        # REQ#3.4: Läs in sparade standardinställningar vid boot
-        self.load_settings()
 
         log("Connecting to Wifi..")
         self.connect_wifi()
 
-        self.set_current_stop_id(self.current_stop_id)
+        # Updates current_station data
+        self.set_current_stop_id(self.settings.current_stop_id)
 
         self.create_ui()
 
         log("student application ready - starting at startup tile (0, 0)")
-    
-    #Inställningshantering (REQ#3.4 och REQ#3.5)
-    def load_settings(self):
-        try:
-            with open(SETTINGS_FILE, "r") as f:
-                data = json.load(f)
-                self.current_stop_id = data.get("stop", DEFAULT_STOP_ID)
-                self.current_transport = data.get("transport", DEFAULT_TRANSPORT)
-                log("Settings loaded from flash")
-        except Exception:
-            self.current_stop_id = DEFAULT_STOP_ID
-            self.current_transport = DEFAULT_TRANSPORT
-            log("No settings found, using factory default")
-
-    def save_settings(self):
-        try:
-            with open(SETTINGS_FILE, "w") as f:
-                json.dump({"stop": self.current_stop_id, "transport": self.current_transport}, f)
-            log("Settings saved to flash")
-        except Exception as err:
-            log("Failed to save settings: %r" % (err,))
 
     def set_current_stop_id(self, stop_id):
         for station in STATIONS:
             if station[0] == stop_id:
                 self.current_station = station
-                self.current_stop_id = stop_id
+                self.settings.current_stop_id = stop_id
                 return
 
         # Saved stop is not in stations.py
@@ -86,8 +59,8 @@ class Application:
     def update_departure_table(self):
         # Uppdatera rubriken på tabellen
         title = "DEPARTURES: " + self.current_station[1].upper()
-        if self.current_transport != "All":
-            title += " (" + self.current_transport.upper() + ")"
+        if self.settings.current_transport != "All":
+            title += " (" + self.settings.current_transport.upper() + ")"
         self.lbl_dept_title.set_text(title)
 
         # Rensa gamla rader
@@ -104,8 +77,8 @@ class Application:
             return
 
         # Filtrera baserat på transporttyp (REQ#3.3)
-        if self.current_transport != "All":
-            filtered = [dep for dep in departures if dep["route"]["transport_mode"].upper() == self.current_transport.upper()]
+        if self.settings.current_transport != "All":
+            filtered = [dep for dep in departures if dep["route"]["transport_mode"].upper() == self.settings.current_transport.upper()]
         else:
             filtered = departures
 
@@ -139,23 +112,23 @@ class Application:
     def on_transport_changed(self, event):
         idx = event.get_target_obj().get_selected()
         if idx == 0:
-            self.current_transport = "All"
+            self.settings.current_transport = "All"
         elif idx == 1:
-            self.current_transport = "Bus"
+            self.settings.current_transport = "Bus"
         elif idx == 2:
-            self.current_transport = "Train"
+            self.settings.current_transport = "Train"
         self.update_departure_table()
 
     def on_save_clicked(self, _event):
-        self.save_settings()
+        self.settings.save()
         self.lbl_status.set_text("Settings saved as default!")
 
     def on_reset_clicked(self, _event):
-        self.set_current_stop_id(DEFAULT_STOP_ID)
-        self.current_transport = DEFAULT_TRANSPORT
+        self.settings = UserSettings()
+        self.set_current_stop_id(self.settings.current_stop_id)
         self.dd_stops.set_selected(STATIONS.index(self.current_station))
         self.dd_transport.set_selected(0)
-        self.save_settings()
+        self.settings.save()
         self.update_departure_table()
         self.lbl_status.set_text("Factory defaults restored!")
 
@@ -250,9 +223,9 @@ class Application:
         self.dd_transport.set_options("All\nBus\nTrain")
         self.dd_transport.set_size(220, 40)
         self.dd_transport.align(lv.ALIGN.TOP_RIGHT, -50, 90)
-        if self.current_transport == "Bus":
+        if self.settings.current_transport == "Bus":
             self.dd_transport.set_selected(1)
-        elif self.current_transport == "Train":
+        elif self.settings.current_transport == "Train":
             self.dd_transport.set_selected(2)
         self.dd_transport.add_event_cb(self.on_transport_changed, lv.EVENT.VALUE_CHANGED, None)
 
