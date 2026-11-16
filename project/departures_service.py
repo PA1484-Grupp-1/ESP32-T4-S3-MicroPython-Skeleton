@@ -1,12 +1,11 @@
 import requests
+#import area_helper
 
 from secrets_env import TRAFIKLAB_API_KEY
 
-TARGET_LOCATION = (56.18684333961802, 15.61205558484464) # Middle of Karlskrona
-MAX_DISTANCE = 0.05
-
 def within_target(lat, lon) -> bool:
-    return ((lat - TARGET_LOCATION[0])**2 + (lon - TARGET_LOCATION[1])**2) <= (MAX_DISTANCE * MAX_DISTANCE)
+    raise NotImplementedError()
+    #return area_helper.within_karlskrona_polygon(lat, lon)
 
 # PC-only: regenerates stations.py (see below). Never called on the device.
 def query_all_stop_groups() -> list:
