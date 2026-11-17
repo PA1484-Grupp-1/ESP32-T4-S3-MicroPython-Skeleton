@@ -1,4 +1,3 @@
-<<<<<<< Updated upstream
 # Shared fonts, colours and widget styles
 import fs_driver
 import lvgl as lv
@@ -46,29 +45,11 @@ def load_font(path, builtin):
 
     font.fallback = builtin
     # Without this, g, j and y get clipped
-=======
-import fs_driver
-import lvgl as lv
-
-# The built-in fonts have no å, ä or ö. The files in fonts/ only hold
-# those letters and use the built-in font for everything else.
-font_normal = lv.font_montserrat_14
-font_title = lv.font_montserrat_28
-
-fs_drv = lv.fs_drv_t()  # Must stay in memory while fonts are used
-
-
-def load_font(path, builtin):
-    font = lv.binfont_create(path)
-    font.fallback = builtin
-    # Use the built-in sizes so letters like g and y are not cut off
->>>>>>> Stashed changes
     font.line_height = builtin.line_height
     font.base_line = builtin.base_line
     return font
 
 
-<<<<<<< Updated upstream
 # Must run after the board is started
 def init_fonts():
     global font_normal, font_row, font_title, _fs_drv
@@ -113,20 +94,6 @@ def style_dropdown(dropdown):
         options.set_style_bg_color(lv.color_hex(COLOR_ACCENT), lv.PART.SELECTED | state)
 
 
-=======
-# Call after the board has started
-def init_fonts():
-    global font_normal, font_title
-
-    fs_driver.fs_register(fs_drv, "S")
-    font_normal = load_font("S:/fonts/sv_14.bin", lv.font_montserrat_14)
-    font_title = load_font("S:/fonts/sv_28.bin", lv.font_montserrat_28)
-
-    text_title.set_text_font(font_title)
-    screen_default.set_text_font(font_normal)
-
-
->>>>>>> Stashed changes
 def new_style() -> lv.style_t:
     style = lv.style_t()
     style.init()
