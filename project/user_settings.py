@@ -25,9 +25,6 @@ class UserSettings:
 
                 log("User Settings loaded.")
                 return settings
-        except FileNotFoundError:
-            log("No User Settings saved, using Default Settings.")
-            return UserSettings()
         except Exception as err:
             log("Error loading User Settings (%r), using Default Settings." % (err,))
             return UserSettings()
