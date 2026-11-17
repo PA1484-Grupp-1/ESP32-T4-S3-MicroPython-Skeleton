@@ -3,13 +3,14 @@ from debug_log import log
 
 SETTINGS_FILE_NAME = "settings.json"
 
-DEFAULT_STOP_ID = "740032188" # Campus Gräsvik Id
+DEFAULT_STOP_ID = "740032188"  # Campus Gräsvik
 DEFAULT_TRANSPORT = "All"
 
-# Settings Management (REQ#3.4 and REQ#3.5)
+# US3.4 and US3.5: Settings saved in settings.json on the device
+
+
 class UserSettings:
     def __init__(self):
-        # Default Settings
         self.current_stop_id = DEFAULT_STOP_ID
         self.current_transport = DEFAULT_TRANSPORT
 
@@ -20,13 +21,16 @@ class UserSettings:
                 data = json.load(f)
 
                 settings = UserSettings()
-                settings.current_stop_id = data.get("stop_id", settings.current_stop_id)
-                settings.current_transport = data.get("transport", settings.current_transport)
+                settings.current_stop_id = data.get(
+                    "stop_id", settings.current_stop_id)
+                settings.current_transport = data.get(
+                    "transport", settings.current_transport)
 
                 log("User Settings loaded.")
                 return settings
         except Exception as err:
-            log("Error loading User Settings (%r), using Default Settings." % (err,))
+            log("Error loading User Settings (%r), using Default Settings."
+                % (err,))
             return UserSettings()
 
     def save(self):
@@ -38,7 +42,7 @@ class UserSettings:
                 }
 
                 json.dump(data, f)
-                
+
                 log("User Settings saved.")
         except Exception as err:
             log("Failed to save settings: %r" % (err,))

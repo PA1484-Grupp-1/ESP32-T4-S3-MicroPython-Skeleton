@@ -23,3 +23,6 @@ The original template has been extended with a bus departure application that di
     - platformio/ - Contains scripts for building and uploading the project.
     - project/ - Contains the Python application code.
     - support/ - Contains hardware, drivers and startup files.
+
+# Data Attribution
+Public transport data is provided by [Trafiklab](https://www.trafiklab.se/) through the Trafiklab Realtime API. The app shows "Data: Trafiklab.se" on the departure screen.

@@ -1,9 +1,11 @@
 import lvgl as lv
 
+
 def new_style() -> lv.style_t:
     style = lv.style_t()
     style.init()
     return style
+
 
 screen_default = new_style()
 screen_default.set_bg_color(lv.color_hex(0x1e1f22))

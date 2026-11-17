@@ -1,6 +1,6 @@
 from shapely.geometry import Polygon, Point
 
-# Rough polygon around Karlskrona
+# Only used on a PC, rough polygon around Karlskrona
 karlskrona_points = [
     (56.14734956862526, 15.586271493512454),
     (56.150334159404075, 15.553677161724607),
@@ -17,11 +17,15 @@ karlskrona_points = [
 
 karlskrona_polygon = Polygon(karlskrona_points)
 
+
 def within_karlskrona_polygon(lat, lon) -> bool:
     return karlskrona_polygon.contains(Point(lat, lon))
 
-TARGET_LOCATION = (56.18684333961802, 15.61205558484464) # Middle of Karlskrona
+
+TARGET_LOCATION = (56.18684333961802, 15.61205558484464)
 MAX_DISTANCE = 0.05
 
+
 def within_karlskrona_radius(lat, lon) -> bool:
-    return ((lat - TARGET_LOCATION[0])**2 + (lon - TARGET_LOCATION[1])**2) <= (MAX_DISTANCE * MAX_DISTANCE)
+    return ((lat - TARGET_LOCATION[0])**2
+            + (lon - TARGET_LOCATION[1])**2) <= (MAX_DISTANCE * MAX_DISTANCE)
