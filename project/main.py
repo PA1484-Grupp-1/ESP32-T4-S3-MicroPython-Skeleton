@@ -306,9 +306,9 @@ class Application:
         self.table.set_column_width(2, 75)
         self.table.set_column_width(3, 110)
 
-        self.table.set_cell_value(0, 0, "Linje")
+        self.table.set_cell_value(0, 0, "Line")
         self.table.set_cell_value(0, 1, "Destination")
-        self.table.set_cell_value(0, 2, "Tid")
+        self.table.set_cell_value(0, 2, "Time")
         self.table.set_cell_value(0, 3, "Status")
 
         # US4.2: Manual refresh
