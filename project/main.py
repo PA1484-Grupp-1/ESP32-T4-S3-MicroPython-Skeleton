@@ -519,7 +519,7 @@ class Application:
         
         # NF3: Trafiklab attribution
         self.lbl_attribution_journey = lv.label(self.tile_journey)
-        self.lbl_attribution_journey.set_text("Data: Trafiklab.se CC-BY 4.0")
+        self.lbl_attribution_journey.set_text("Data: Trafiklab.se ResRobot CC0 1.0")
         self.lbl_attribution_journey.add_style(styles.text_sub_title, 0)
         self.lbl_attribution_journey.align_to(
             self.btn_refresh_journey, lv.ALIGN.OUT_LEFT_MID, 0, 0)

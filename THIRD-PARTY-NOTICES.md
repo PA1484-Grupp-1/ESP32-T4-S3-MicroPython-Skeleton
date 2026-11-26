@@ -6,3 +6,10 @@ Licensed under CC-BY 4.0
 https://creativecommons.org/licenses/by/4.0/legalcode.txt
 
 https://www.trafiklab.se/api/our-apis/trafiklab-realtime-apis/#license
+
+**Trafiklab.se ResRobot**
+
+Licensed under CC0 1.0
+https://creativecommons.org/publicdomain/zero/1.0/deed.en
+
+https://www.trafiklab.se/api/our-apis/resrobot-v21/license/
