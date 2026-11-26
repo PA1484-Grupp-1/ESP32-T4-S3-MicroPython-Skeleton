@@ -21,7 +21,9 @@ BUILD = ROOT / "device-build"
 VFS_ROOT = BUILD / "vfs-root"
 VFS_IMAGE = BUILD / "t4s3-vfs.img"
 VFS_DEPLOY_IMAGE = BUILD / "t4s3-vfs-deploy.img"
-VFS_DEPLOY_SIZE = 0x20000
+# READ ME! SUPER IMPORTANT!
+# This is how many bytes are copied into the device, Originally 128 KB (Too Small!) but Currently 256 KB
+VFS_DEPLOY_SIZE = 0x40000
 FIRMWARE = ROOT / "firmware" / "t4s3-lvgl-micropython.bin"
 
 PIO_PACKAGES = Path(env.subst("$PROJECT_PACKAGES_DIR"))

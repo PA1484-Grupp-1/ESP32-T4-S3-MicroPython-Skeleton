@@ -1,4 +1,3 @@
-import json
 import sys
 import time
 
@@ -13,36 +12,16 @@ from secrets_env import WIFI_SSID, WIFI_PASSWORD
 import fonts
 import styles
 import departures_service as dep_service
+from custom_keyboard import custom_keyboard
+from search_area import SearchArea
 from user_settings import UserSettings, DEFAULT_STOP_ID
 from stations import stations
+from format_helpers import upper, fit
 
 # US3.2B: All selectable stops, sorted by name
 STATIONS = sorted(stations, key=lambda s: s[1])
 
 REFRESH_INTERVAL_MS = 60_000  # US4.1
-
-
-# MicroPython's str.upper() only handles ASCII letters
-def upper(text):
-    pairs = (("å", "Å"), ("ä", "Ä"), ("ö", "Ö"), ("æ", "Æ"), ("ø", "Ø"),
-             ("é", "É"), ("ü", "Ü"))
-    for small, big in pairs:
-        text = text.replace(small, big)
-    return text.upper()
-
-
-# Shortens text with "..." so a table cell never wraps to more lines
-def fit(text, width):
-    font = fonts.normal
-
-    def text_width(t):
-        return sum(font.get_glyph_width(ord(c), 0) for c in t)
-
-    if text_width(text) <= width:
-        return text
-    while text and text_width(text + "...") > width:
-        text = text[:-1]
-    return text.rstrip() + "..."
 
 
 # Logs errors in callbacks instead of crashing the app
@@ -162,6 +141,112 @@ class Application:
             self.table.set_cell_value(row_idx, 2, dep_time)
             self.table.set_cell_value(row_idx, 3, self.format_status(dep_data))
 
+    @staticmethod
+    def format_journey_station(station_name):
+        index = station_name.find('(')
+        if index == -1: return station_name
+        return station_name[:index]
+
+    @safe
+    def add_journey_step(self, step):
+        step_container = lv.obj(self.journey_container)
+        step_container.set_size(317, lv.SIZE_CONTENT)
+        step_container.align(lv.ALIGN.CENTER, 0, 0)
+        step_container.set_style_bg_color(lv.color_hex(0x2B2E33), 0)
+        step_container.set_style_radius(8, 0)
+        step_container.set_style_pad_left(5, 0)
+        step_container.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
+        
+        detail_line = lv.line(step_container)
+        detail_line.set_style_line_color(lv.color_hex(0xFFFFFF), 0)
+        detail_line.set_style_line_width(5, 0)
+        detail_line.set_style_line_rounded(True, 0)
+        points_line = [ lv.point_precise_t({ "x": 10.5, "y": 10.5 }), lv.point_precise_t({ "x": 10.5, "y": 84.5 }) ]
+        detail_line.set_points(points_line, len(points_line))
+        if step["type"] == "WALK":
+            detail_line.set_style_line_dash_width(6, 0)
+            detail_line.set_style_line_dash_gap(6, 0)
+
+        detail_circle_origin = lv.obj(step_container)
+        detail_circle_origin.set_pos(5, 5)
+        detail_circle_origin.set_size(12, 12)
+        detail_circle_origin.set_style_border_width(3, 0)
+        detail_circle_origin.set_style_border_color(lv.color_hex(0xFFFFFF), 0)
+        detail_circle_origin.set_style_bg_color(lv.color_hex(0x2B2E33), 0)
+        detail_circle_origin.set_style_radius(16, 0)
+
+        detail_circle_dest = lv.obj(step_container)
+        detail_circle_dest.set_pos(5, 78)
+        detail_circle_dest.set_size(12, 12)
+        detail_circle_dest.set_style_border_width(3, 0)
+        detail_circle_dest.set_style_border_color(lv.color_hex(0xFFFFFF), 0)
+        detail_circle_dest.set_style_bg_color(lv.color_hex(0x2B2E33), 0)
+        detail_circle_dest.set_style_radius(16, 0)
+
+        origin_time = lv.label(step_container)
+        origin_time.align(lv.ALIGN.TOP_LEFT, 27, 0)
+        origin_time.add_style(styles.text, 0)
+        origin_time.set_text(step["Origin"]["time"][:5])
+        
+        origin_name = lv.label(step_container)
+        origin_name.align(lv.ALIGN.TOP_LEFT, 27, 20)
+        origin_name.set_text(self.format_journey_station(step["Origin"]["name"]))
+        origin_name.add_style(styles.text_sub_title, 0)
+
+        line = step["Product"][0].get("line", None)
+        if line is None:
+            line = step["Product"][0]["name"]
+        else:
+            line = "Line " + line
+            line += f", Towards: {self.format_journey_station(step["direction"])}"
+        
+        line_lbl = lv.label(step_container)
+        line_lbl.align(lv.ALIGN.TOP_LEFT, 27, 45)
+        line_lbl.set_text(line)
+        line_lbl.add_style(styles.text_sub_title, 0)
+        
+        dest_time = lv.label(step_container)
+        dest_time.align(lv.ALIGN.TOP_LEFT, 27, 74)
+        dest_time.set_text(step["Destination"]["time"][:5])
+        dest_time.add_style(styles.text, 0)
+        
+        dest_name = lv.label(step_container)
+        dest_name.align(lv.ALIGN.TOP_LEFT, 27, 74 + 20)
+        dest_name.set_text(self.format_journey_station(step["Destination"]["name"]))
+        dest_name.add_style(styles.text_sub_title, 0)
+
+    @safe
+    def on_search_journey(self, event): # US5.3B
+        self.journey_container.clean()
+        
+        if self.ta_to.get_text() == "" or self.ta_from.get_text() == "":
+            return
+        
+        from_station_id = ""
+        to_station_id = ""
+        
+        for station in STATIONS:
+            if upper(station[1]) == upper(self.ta_from.get_text()):
+                from_station_id = station[0]
+            if upper(station[1]) == upper(self.ta_to.get_text()):
+                to_station_id = station[0]
+
+            if from_station_id != "" and to_station_id != "":
+                break
+
+        if from_station_id == "" or to_station_id == "":
+            return
+
+        if from_station_id == to_station_id:
+            return
+
+        journeys = dep_service.query_journeys(from_station_id, to_station_id)
+        if len(journeys) == 0:
+            return
+
+        for step in journeys[0]["LegList"]["Leg"]:
+            self.add_journey_step(step)
+
     @safe
     def on_stop_changed(self, event):  # US3.2B
         idx = event.get_target_obj().get_selected()
@@ -238,6 +323,11 @@ class Application:
         fonts.load()
         lv.screen_active().set_style_text_font(fonts.normal, 0)
         styles.text_title.set_text_font(fonts.title)
+        styles.text_sub_title.set_text_font(fonts.normal)
+        styles.text.set_text_font(fonts.normal)
+
+        # Shared Keyboard
+        self.shared_kb = custom_keyboard(lv.layer_top())
 
         # US2.1: The screens are tiles, navigated by swiping
         self.tileview = lv.tileview(lv.screen_active())
@@ -245,7 +335,7 @@ class Application:
         self.tileview.set_scrollbar_mode(lv.SCROLLBAR_MODE.OFF)
 
         # US1.1: Start screen
-        self.tile_startup = self.tileview.add_tile(0, 0, lv.DIR.BOTTOM)
+        self.tile_startup = self.tileview.add_tile(1, 0, lv.DIR.BOTTOM)
         self.tile_startup.add_style(styles.screen_default, 0)
 
         self.lbl_title = lv.label(self.tile_startup)
@@ -272,7 +362,7 @@ class Application:
 
         # US1.2B: Departure screen
         self.tile_main = self.tileview.add_tile(
-            0, 1, lv.DIR.TOP | lv.DIR.RIGHT)
+            1, 1, lv.DIR.TOP | lv.DIR.LEFT | lv.DIR.RIGHT)
         self.tile_main.add_style(styles.screen_default, 0)
         self.lbl_dept_title = lv.label(self.tile_main)
         self.lbl_dept_title.add_style(styles.text_title, 0)
@@ -332,14 +422,97 @@ class Application:
 
         # NF3: Trafiklab attribution
         self.lbl_attribution = lv.label(self.tile_main)
-        self.lbl_attribution.set_text("Data: Trafiklab.se")
+        self.lbl_attribution.set_text("Data: Trafiklab.se CC-BY 4.0")
         self.lbl_attribution.add_style(styles.text_sub_title, 0)
         self.lbl_attribution.align_to(
             self.btn_refresh, lv.ALIGN.OUT_LEFT_MID, 0, 0)
         self.lbl_attribution.set_x(10)
 
+        # US5.1: Journey screen
+        self.tile_journey = self.tileview.add_tile(0, 1, lv.DIR.RIGHT)
+        self.tile_journey.add_style(styles.screen_default, 0)
+
+        self.lbl_journey_title = lv.label(self.tile_journey)
+        self.lbl_journey_title.set_text("JOURNEY")
+        self.lbl_journey_title.add_style(styles.text_title, 0)
+        self.lbl_journey_title.align(lv.ALIGN.TOP_MID, 0, 15)
+
+        # US5.1B: Search Origin and Destination
+        self.ta_from = lv.textarea(self.tile_journey)
+        self.ta_from.set_style_text_font(fonts.normal, 0)
+        self.ta_from.set_size(220, 40)
+        self.ta_from.align(lv.ALIGN.TOP_LEFT, 50, 90)
+        self.ta_from.set_placeholder_text("Search Stop..")
+        self.ta_from.set_one_line(True)
+
+        self.ta_from.add_event_cb(
+            self.on_search_journey, lv.EVENT.VALUE_CHANGED, None)
+        self.search_from = SearchArea(self.ta_from, self.shared_kb)
+
+        search_stations = [station[1] for station in STATIONS]
+        self.search_from.set_options(search_stations)
+
+        self.lbl_from = lv.label(self.tile_journey)
+        self.lbl_from.add_style(styles.text, 0)
+        self.lbl_from.set_text("From:")
+        self.lbl_from.align_to(self.ta_from, lv.ALIGN.OUT_TOP_LEFT, 0, -10)
+
+        self.ta_to = lv.textarea(self.tile_journey)
+        self.ta_to.set_style_text_font(fonts.normal, 0)
+        self.ta_to.set_size(220, 40)
+        self.ta_to.align(lv.ALIGN.TOP_RIGHT, -50, 90)
+        self.ta_to.set_placeholder_text("Search Stop..")
+        self.ta_to.set_one_line(True)
+        self.ta_to.add_event_cb(
+            self.on_search_journey, lv.EVENT.VALUE_CHANGED, None)
+        self.search_to = SearchArea(self.ta_to, self.shared_kb)
+
+        self.search_to.set_options(search_stations)
+
+        self.lbl_from = lv.label(self.tile_journey)
+        self.lbl_from.add_style(styles.text, 0)
+        self.lbl_from.set_text("To:")
+        self.lbl_from.align_to(self.ta_to, lv.ALIGN.OUT_TOP_LEFT, 0, -10)
+
+        self.journey_container = lv.obj(self.tile_journey)
+        self.journey_container.align(lv.ALIGN.CENTER, 0, 60)
+        self.journey_container.set_style_bg_color(lv.color_hex(0x16171a), 0)
+        self.journey_container.set_style_border_width(0, 0)
+        self.journey_container.set_size(350, 220)
+        self.journey_container.set_style_radius(8, 0)
+        self.journey_container.set_flex_flow(lv.FLEX_FLOW.COLUMN)
+        self.journey_container.set_scrollbar_mode(lv.SCROLLBAR_MODE.AUTO)
+        self.journey_container.set_scroll_dir(lv.DIR.VER)
+
+        # Manual Refresh
+        self.btn_refresh_journey = lv.button(self.tile_journey)
+        self.btn_refresh_journey.set_size(130, 36)
+        self.btn_refresh_journey.align(lv.ALIGN.BOTTOM_RIGHT, -10, -8)
+        self.btn_refresh_journey.set_style_radius(8, 0)
+        self.btn_refresh_journey.set_style_bg_color(lv.color_hex(0x2B2E33), 0)
+        self.btn_refresh_journey.set_style_bg_color(
+            lv.color_hex(0x3A3D42), lv.STATE.PRESSED)
+        self.btn_refresh_journey.set_style_border_width(1, 0)
+        self.btn_refresh_journey.set_style_border_color(lv.color_hex(0x3A3D42), 0)
+        self.btn_refresh_journey.set_style_shadow_width(0, 0)
+        self.btn_refresh_journey.add_event_cb(
+            self.on_search_journey, lv.EVENT.CLICKED, None)
+        
+        lbl_refresh_journey = lv.label(self.btn_refresh_journey)
+        lbl_refresh_journey.set_text(lv.SYMBOL.REFRESH + "  Refresh")
+        lbl_refresh_journey.add_style(styles.text, 0)
+        lbl_refresh_journey.center()
+        
+        # NF3: Trafiklab attribution
+        self.lbl_attribution_journey = lv.label(self.tile_journey)
+        self.lbl_attribution_journey.set_text("Data: Trafiklab.se CC-BY 4.0")
+        self.lbl_attribution_journey.add_style(styles.text_sub_title, 0)
+        self.lbl_attribution_journey.align_to(
+            self.btn_refresh_journey, lv.ALIGN.OUT_LEFT_MID, 0, 0)
+        self.lbl_attribution_journey.set_x(10)
+
         # US3.1: Settings screen
-        self.tile_settings = self.tileview.add_tile(1, 1, lv.DIR.LEFT)
+        self.tile_settings = self.tileview.add_tile(2, 1, lv.DIR.LEFT)
         self.tile_settings.add_style(styles.screen_default, 0)
 
         self.lbl_settings_title = lv.label(self.tile_settings)
@@ -352,7 +525,7 @@ class Application:
         self.lbl_stop.set_text("Departure Stop:")
         self.lbl_stop.add_style(styles.text, 0)
         self.lbl_stop.align(lv.ALIGN.TOP_LEFT, 50, 65)
-
+        
         self.dd_stops = lv.dropdown(self.tile_settings)
         self.dd_stops.set_options(
             "\n".join([station[1] for station in STATIONS]))
@@ -412,6 +585,11 @@ class Application:
         self.lbl_live = lv.label(self.tile_settings)
         self.lbl_live.add_style(styles.text, 0)
         self.lbl_live.align(lv.ALIGN.TOP_LEFT, 50, 240)
+
+        # Because the startup tile isn't on 0,0 set it as the current tile on startup
+        # Before create_wifi_icon() as lvgl starts rendering as soon as its declared
+        # This ensures that we are on the startup screen when showing the wifi icons
+        self.tileview.set_tile(self.tile_startup, 0)
 
         self.create_wifi_icon()
 
