@@ -2,6 +2,14 @@ import lvgl as lv
 from format_helpers import upper
 
 class SearchArea:
+    def defocus(self):
+        if not self.textarea.has_state(lv.STATE.FOCUSED):
+            return
+
+        # FIX ME: Only clears the focus visually, for some reason doesn't let you click on it again to regain focus
+        self.textarea.remove_state(lv.STATE.FOCUSED | lv.STATE.FOCUS_KEY)
+        self.textarea.send_event(lv.EVENT.DEFOCUSED, None)
+
     def on_select_option(self, event: lv.event_t):
         options = self.dd.get_options().split("\n")
         
@@ -10,9 +18,7 @@ class SearchArea:
 
         self.textarea.set_text(options[self.dd.get_selected()])
 
-        # FIX ME: Only clears the focus visually, for some reason doesn't let you click on it again to regain focus
-        self.textarea.remove_state(lv.STATE.FOCUSED | lv.STATE.FOCUS_KEY)
-        self.textarea.send_event(lv.EVENT.DEFOCUSED, None)
+        self.defocus()
 
     def on_click_keyboard(self, event: lv.event_t):
         if not self.dd.is_open():

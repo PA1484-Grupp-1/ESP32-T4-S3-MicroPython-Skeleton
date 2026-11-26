@@ -240,6 +240,9 @@ class Application:
         if from_station_id == to_station_id:
             return
 
+        self.search_from.defocus()
+        self.search_to.defocus()
+
         journeys = dep_service.query_journeys(from_station_id, to_station_id)
         if len(journeys) == 0:
             return
@@ -247,12 +250,23 @@ class Application:
         for step in journeys[0]["LegList"]["Leg"]:
             self.add_journey_step(step)
 
+    # US3.2C Search and Select Stop
     @safe
-    def on_stop_changed(self, event):  # US3.2B
-        idx = event.get_target_obj().get_selected()
-        if 0 <= idx < len(STATIONS):
-            self.set_current_stop_id(STATIONS[idx][0])
-            self.update_departure_table()
+    def on_focus_stop_search(self, event):
+        self.ta_stops.set_text("")
+        self.search_stops.update_search_options(None)
+        self.search_stops.dd.set_selected(STATIONS.index(self.current_station))
+
+    @safe
+    def on_defocus_stop_search(self, event):
+        for station in STATIONS:
+            if upper(station[1]) == upper(self.ta_stops.get_text()):
+                self.current_station = station
+                self.settings.current_stop_id = station[0]
+                break
+
+        self.ta_stops.set_text(self.current_station[1])
+        self.update_departure_table()
 
     @safe
     def on_transport_changed(self, event):  # US3.3
@@ -344,7 +358,7 @@ class Application:
         self.lbl_title.align(lv.ALIGN.TOP_MID, 0, 40)
 
         self.lbl_ver = lv.label(self.tile_startup)
-        self.lbl_ver.set_text("Version: 0.1.1")
+        self.lbl_ver.set_text("Version: 1.0.0")
         self.lbl_ver.add_style(styles.text_sub_title, 0)
         self.lbl_ver.align(lv.ALIGN.TOP_MID, 0, 85)
 
@@ -439,11 +453,11 @@ class Application:
 
         # US5.1B: Search Origin and Destination
         self.ta_from = lv.textarea(self.tile_journey)
-        self.ta_from.set_style_text_font(fonts.normal, 0)
         self.ta_from.set_size(220, 40)
         self.ta_from.align(lv.ALIGN.TOP_LEFT, 50, 90)
-        self.ta_from.set_placeholder_text("Search Stop..")
+        self.ta_from.add_style(styles.text, 0)
         self.ta_from.set_one_line(True)
+        self.ta_from.set_placeholder_text("Search Stop..")
 
         self.ta_from.add_event_cb(
             self.on_search_journey, lv.EVENT.VALUE_CHANGED, None)
@@ -458,11 +472,11 @@ class Application:
         self.lbl_from.align_to(self.ta_from, lv.ALIGN.OUT_TOP_LEFT, 0, -10)
 
         self.ta_to = lv.textarea(self.tile_journey)
-        self.ta_to.set_style_text_font(fonts.normal, 0)
         self.ta_to.set_size(220, 40)
         self.ta_to.align(lv.ALIGN.TOP_RIGHT, -50, 90)
-        self.ta_to.set_placeholder_text("Search Stop..")
+        self.ta_to.add_style(styles.text, 0)
         self.ta_to.set_one_line(True)
+        self.ta_to.set_placeholder_text("Search Stop..")
         self.ta_to.add_event_cb(
             self.on_search_journey, lv.EVENT.VALUE_CHANGED, None)
         self.search_to = SearchArea(self.ta_to, self.shared_kb)
@@ -525,18 +539,24 @@ class Application:
         self.lbl_stop.set_text("Departure Stop:")
         self.lbl_stop.add_style(styles.text, 0)
         self.lbl_stop.align(lv.ALIGN.TOP_LEFT, 50, 65)
-        
-        self.dd_stops = lv.dropdown(self.tile_settings)
-        self.dd_stops.set_options(
-            "\n".join([station[1] for station in STATIONS]))
-        self.dd_stops.set_size(220, 40)
-        self.dd_stops.align(lv.ALIGN.TOP_LEFT, 50, 90)
-        self.dd_stops.set_style_text_font(fonts.normal, 0)
-        self.dd_stops.get_list().set_style_text_font(fonts.normal, 0)
+
+        self.ta_stops = lv.textarea(self.tile_settings)
+        self.ta_stops.set_size(220, 40)
+        self.ta_stops.align(lv.ALIGN.TOP_LEFT, 50, 90)
+        self.ta_stops.add_style(styles.text, 0)
+        self.ta_stops.set_one_line(True)
+        self.ta_stops.set_placeholder_text("Search Stop..")
+        self.search_stops = SearchArea(self.ta_stops, self.shared_kb)
+
+        self.search_stops.set_options(search_stations)
+
         if self.current_station in STATIONS:
-            self.dd_stops.set_selected(STATIONS.index(self.current_station))
-        self.dd_stops.add_event_cb(
-            self.on_stop_changed, lv.EVENT.VALUE_CHANGED, None)
+            self.ta_stops.set_text(self.current_station[1])
+
+        self.ta_stops.add_event_cb(
+            self.on_focus_stop_search, lv.EVENT.FOCUSED, None)
+        self.ta_stops.add_event_cb(
+            self.on_defocus_stop_search, lv.EVENT.DEFOCUSED, None)
 
         # US3.3: Select transport type
         self.lbl_transport = lv.label(self.tile_settings)
