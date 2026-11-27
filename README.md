@@ -19,6 +19,19 @@ Examples of things to describe:
 - If the program accepts different arguments or modes
 - How to operate the program (e.g., touchscreen interaction)
 
+## Building and running
+### how to upload to ESP32
+To upload to the ESP32, Hold down Boot and the press RST to go into upload mode. Open PlatformIO extension tab, Project Tasks > t4s3-micropython > Custom then wait for the loading bar to finish, then build python application and flash project application. Finally hold RST for 3 seconds to start the application.
+
+### what is start-up procedure 
+To start the device it needs to be connected by USB-C to a computer and connected by WiFi. Once connected the device starts automatically. If the device is not connected to WiFi it will still turn on but the display will not turn on.
+if the program accepts different arguments
+
+### Arguments
+
+### How to operate
+To operate, the device needs to be connected to a computer and WiFi, turn on the device and swipe down to bring up the departures menu. To change the stations, swipe left then press on the station tab you want to change (To and from) press on the station and a drop down list of different stations will appear. If you want to save the stations as default you press the button and those stations will become the default ones. If you wish to reload the departures list there is a button to do it manually.
+
 ## Features
 Lastly, write which of the user stories you did and didn't develop in this project, in the form of a checklist. Like this:
 
