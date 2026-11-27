@@ -1,9 +1,10 @@
 ## Introduction
-This part should give a general introduction to your project. Briefly describe your project:
-- What the system does
-- What problem it solves
-- What technologies it uses (ESP32, touchscreen, API, PlatformIO)
-- What the main functionality is
+
+This project is based on the ESP32-T4-S3 LilyGO board. It uses MicroPython and LVGL to develop applications with a graphical user interface. The original template repository has been extended with a bus departure application that displays real-time public transport information. It uses Trafiklab Realtime API to get public transport departures data.
+
+This solution aims to provide users with a seamless and intuitive way to navigate Karlskrona's public transport network, making journey planning and accessing travel information easier and more effecient. 
+
+*For more detailed information about the project's development, see [docs/index.md](./docs/index.md)*
 
 ## Getting started
 This section should guide a new developer through the steps of how to set up theproject and install the dependencies they need to start developing.
