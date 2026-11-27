@@ -1,6 +1,6 @@
 ## Introduction
 
-This project is based on the ESP32-T4-S3 LilyGO board. It uses MicroPython and LVGL to develop applications with a graphical user interface. The original template repository has been extended with a bus departure application that displays real-time public transport information. It uses Trafiklab Realtime API to get public transport departures data.
+This project is based on the ESP32-T4-S3 LilyGO board. It uses MicroPython and LVGL to develop applications with a graphical user interface. The original skeleton-template repository has been extended with a bus departure application that displays real-time public transport information. It uses Trafiklab Realtime API to get public transport departures data.
 
 This solution aims to provide users with a seamless and intuitive way to navigate Karlskrona's public transport network, making journey planning and accessing travel information easier and more effecient. 
 
@@ -9,6 +9,9 @@ This solution aims to provide users with a seamless and intuitive way to navigat
 ## Getting started
 This section should guide a new developer through the steps of how to set up theproject and install the dependencies they need to start developing.
 It can include: 
+
+### Prerequisites 
+### Installation
 
 ## Building and running
 This is where you explain how to make the project run.
