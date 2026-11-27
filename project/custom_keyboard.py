@@ -43,7 +43,7 @@ def switch_keyboard_mode(event: lv.event_t):
         return
     
     set_keyboard_mode(keyboard, not is_keyboard_upper(keyboard))
-    event.stop_processing()
+    event.stop_processing() # Dont draw the up arrow to the textarea
 
 def clear_text_area(event: lv.event_t):
     keyboard: lv.keyboard = event.get_target_obj()

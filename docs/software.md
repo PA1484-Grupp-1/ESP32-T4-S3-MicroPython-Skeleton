@@ -8,6 +8,7 @@ Creates the user interface and connects all modules.
 
 - **Start screen** (US1.1): Project name, version, group and members.
 - **Departure screen** (US1.2B): The stop name as title, with the selected transport type below it (e.g. "Departures · Train", US3.3). Table with line (bus line or train number), destination, time and status (On time, +N min or Cancelled). Text that is too long for a cell ends with "...". Has a refresh button (US4.2) and Trafiklab attribution.
+- **Journey screen** (US5.1 - US5.3): Select departure and destination stop, travel instructions are displayed for the journey. Each step in the journey has departure time for each intermediate stop where one must change transportation. Has a refresh button and ResRobot Trafiklab attribution
 - **Settings screen** (US3.1 - US3.5): Stop and transport type (All, Bus, Train, Ferry), Save Default, Reset to Default, and live data status (US4.3).
 - **Wi-Fi icon** (US4.3): Phone-style icon in the top right corner of every screen (on LVGL's top layer). White when connected, grey when not.
 - **Auto refresh** (US4.1): An LVGL timer updates the departures every 60 seconds.
@@ -16,11 +17,22 @@ Creates the user interface and connects all modules.
 
 # API Communication - project\departures_service.py
 
-Communicates with the Trafiklab API using HTTP GET requests. The API key is loaded from secrets_env.py
+Communicates with the Trafiklab API using HTTP GET requests. The API key is loaded from `secrets_env.py`
 
 - **query_departures()**: Retrieves depatures for a specific stop ID.
+- **query_journeys()**: Retrieves instructions on how to travel between two specific stop IDs.
 - **within_target()**: Checks geographical coordinates.
 - **query_all_stop_groups()**: Retrieves stop groups used to generate the station list.
+
+
+# Keyboard Implementation - project\custom_keyboard.py
+
+Custom keyboard implementation that has all letters that the stations use.
+
+
+# Search Area - project\search_area.py
+
+Custom widget handling searching for options.
 
 
 # User Settings - project\user_settings.py
@@ -36,6 +48,11 @@ Contains a list of stations. Each entry consists of a station ID and a name. Thi
 # UI Styling - project\styles.py
 
 Define colors, fonts, and reusable visual styles. The fonts are loaded from **fonts.py**.
+
+
+# Formatting - project\format_helpers.py
+
+Helper functions for formatting.
 
 
 # Fonts - project\fonts.py
